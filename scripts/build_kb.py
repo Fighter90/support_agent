@@ -50,5 +50,37 @@ def main() -> None:
     print(f'{dst}: {len(sections)} статей', file=sys.stderr)
 
 
+DOCS = 'https://docs.softline.com/ru-ru/'
+DOCS_PAGES = ['id/about', 'id/registration', 'id/login', 'id/password', 'id/change-password', 'id/profile', 'id/authorization-data',
+              'lk/advantages', 'lk/login', 'lk/lk-password', 'lk/lk-email', 'lk/create-lk', 'lk/create-order', 'lk/change-order',
+              'lk/cancel-order', 'lk/view-statuses', 'lk/fulfillment', 'lk/invoices', 'lk/invoice-statuses', 'lk/unpaid-invoices',
+              'lk/closing-documents', 'lk/edo', 'lk/agreements', 'lk/renewal', 'lk/trial-license', 'lk/products-overview',
+              'lk/order-contact', 'lk/companies-and-users', 'lk/users', 'lk/calendar', 'lk/mailings-management']
+
+
+def docs_kb() -> None:
+    """Вторая база знаний заказчика: справка docs.softline.com (Softline ID и личный кабинет)."""
+    out = ['# Справка Softline: Softline ID и личный кабинет', f'Источник: {DOCS}', '']
+    n = 0
+    for p in DOCS_PAGES:
+        try:
+            page = httpx.get(DOCS + p, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30, follow_redirects=True).text
+        except httpx.HTTPError:
+            continue
+        m = re.search(r'(?s)<(?:article|main)[^>]*>(.*?)</(?:article|main)>', page)
+        part = m.group(1) if m else page
+        title_m = re.search(r'(?s)<h1[^>]*>(.*?)</h1>', part) or re.search(r'(?s)<title>(.*?)</title>', page)
+        title = re.sub(r'<[^>]+>|\s+', ' ', html.unescape(title_m.group(1))).strip().split('|')[0].strip() if title_m else p
+        body = ' '.join(x for x in lines_of(part) if x != title)
+        body = re.sub(r'\s+', ' ', body)[:3000]
+        if len(body) > 80:
+            section = 'Softline ID' if p.startswith('id/') else 'Личный кабинет'
+            out += [f'## {section}: {title}', f'{body} (подробнее: {DOCS}{p})', '']
+            n += 1
+    (ROOT / 'data' / 'kb' / 'softline_docs.md').write_text('\n'.join(out), encoding='utf-8')
+    print(f'softline_docs.md: {n} статей', file=sys.stderr)
+
+
 if __name__ == '__main__':
     main()
+    docs_kb()

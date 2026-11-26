@@ -27,7 +27,14 @@ def _vat(price_total: float, domestic: bool) -> float:
     return 0.0 if domestic else round(price_total * VAT_RATE / (100 + VAT_RATE), 2)
 
 
-def create(conv_id: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+MAX_AUTO_DISCOUNT = 5.0  # заказчик на установочной встрече: агент сам даёт до 5%, больше — только менеджер
+
+
+def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 0, kind: str = 'quote') -> dict[str, Any]:
+    discount = float(discount_percent or 0)
+    if discount < 0 or discount > MAX_AUTO_DISCOUNT:
+        raise QuoteError(f'Скидку больше {MAX_AUTO_DISCOUNT:g}% агент не согласует — передай запрос менеджеру')
+    kind = 'invoice' if kind == 'invoice' else 'quote'
     ids = [int(i.get('offer_id', 0)) for i in items if i.get('offer_id')]
     offers = catalog.get_offers(ids)
     lines, problems = [], []
@@ -41,20 +48,22 @@ def create(conv_id: str, items: list[dict[str, Any]]) -> dict[str, Any]:
         if not o['price'] or not o['available']:
             problems.append(f'«{o["name"]}» — цена не опубликована или позиция недоступна, нужен расчёт менеджера')
             continue
-        total = round(o['price'] * qty, 2)
-        lines.append({'offer_id': oid, 'article': str(oid), 'name': o['name'], 'quantity': qty, 'price': o['price'],
+        price = round(o['price'] * (1 - discount / 100), 2)
+        total = round(price * qty, 2)
+        lines.append({'offer_id': oid, 'article': str(oid), 'name': o['name'], 'quantity': qty, 'list_price': o['price'], 'price': price,
                       'total': total, 'vat': _vat(total, bool(o['registry'])), 'domestic': bool(o['registry']), 'url': o['url']})
     if not lines:
         raise QuoteError('; '.join(problems) or 'нет позиций для КП')
     qid = db.new_id('q')
     n = (db.one('SELECT count(*) AS n FROM quotes') or {'n': 0})['n'] + 1
-    number = f'КП-{time.strftime("%Y%m%d")}-{n:04d}'
+    number = f'{"СЧ" if kind == "invoice" else "КП"}-{time.strftime("%Y%m%d")}-{n:04d}'
     total = round(sum(x['total'] for x in lines), 2)
     vat = round(sum(x['vat'] for x in lines), 2)
-    db.execute('INSERT INTO quotes (id, number, conv_id, items, total, vat, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
-               (qid, number, conv_id, db.dumps(lines), total, vat, 'awaiting_requisites', db.now(), db.now()))
-    return {'quote_id': qid, 'number': number, 'items': lines, 'total_rub': total, 'vat_rub': vat, 'skipped': problems,
-            'status': 'awaiting_requisites'}
+    db.execute('INSERT INTO quotes (id, number, conv_id, items, total, vat, status, created_at, updated_at, kind, discount) '
+               'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+               (qid, number, conv_id, db.dumps(lines), total, vat, 'awaiting_requisites', db.now(), db.now(), kind, discount))
+    return {'quote_id': qid, 'number': number, 'kind': kind, 'discount_percent': discount, 'items': lines, 'total_rub': total,
+            'vat_rub': vat, 'skipped': problems, 'status': 'awaiting_requisites'}
 
 
 def get(qid: str) -> dict[str, Any] | None:
@@ -88,41 +97,65 @@ def _rub(x: float) -> str:
     return f'{x:,.2f}'.replace(',', ' ').replace('.', ',')
 
 
+SELLER = {  # ПАО «Софтлайн» — со страницы store.softline.ru/delivery_info, раздел «Наши реквизиты»
+    'name': 'ПАО «Софтлайн»', 'inn': '7736227885', 'kpp': '770401001',
+    'address': '119021, г. Москва, ул. Льва Толстого, д. 5, стр. 1, этаж 3, помещение 1, комн. №2, 2а (А-311)',
+    'bank': 'ОАО «Альфа-банк» г. Москва', 'account': '40702810502300000368', 'corr': '30101810200000000593', 'bik': '044525593',
+}
+
+
 def render_html(q: dict[str, Any], approved_by: str = '') -> str:
     c = q.get('customer') or {}
+    invoice = q.get('kind') == 'invoice'
     cust = html.escape(c.get('company') or '[Наименование заказчика]')
     if c.get('inn'):
         cust += f'<br>ИНН {html.escape(c["inn"])}' + (f', КПП {html.escape(c["kpp"])}' if c.get('kpp') else '')
+    disc = float(q.get('discount') or 0)
     rows = ''.join(
         f'<tr><td>{html.escape(i["article"])}</td><td>{html.escape(i["name"])}</td><td class="n">{i["quantity"]}</td>'
         f'<td class="n">{_rub(i["price"])}</td><td class="n">{_rub(i["total"])}</td>'
         f'<td class="n">{"без НДС" if i["domestic"] else _rub(i["vat"])}</td></tr>' for i in q['items'])
     date = time.strftime('%d.%m.%Y', time.localtime(q['created_at']))
-    valid = time.strftime('%d.%m.%Y', time.localtime(q['created_at'] + 14 * 86400))
+    valid = time.strftime('%d.%m.%Y', time.localtime(q['created_at'] + (5 if invoice else 14) * 86400))
     logo = f'<img class="logo" src="file://{LOGO}">' if LOGO.exists() else '<b>Софтлайн</b>'
-    status = 'Черновик — ожидает проверки менеджером' if q['status'] != 'approved' else f'Проверено менеджером: {html.escape(approved_by or "менеджер")}'
+    what = 'Счёт' if invoice else 'Коммерческое предложение'
+    status = f'{what}: черновик — ожидает проверки менеджером' if q['status'] != 'approved' else f'Проверено менеджером: {html.escape(approved_by or "менеджер")}'
+    disc_line = f'Применена скидка {disc:g}% (согласована ИИ-агентом в пределах полномочий).<br>' if disc else ''
+    s = SELLER
+    if invoice:
+        head = f"""<table class="bank"><tr><td colspan="2">{s['bank']}<br><span class="m">Банк получателя</span></td><td>БИК</td><td>{s['bik']}</td></tr>
+        <tr><td colspan="2"></td><td>Сч. №</td><td>{s['corr']}</td></tr>
+        <tr><td>ИНН {s['inn']}</td><td>КПП {s['kpp']}</td><td rowspan="2">Сч. №</td><td rowspan="2">{s['account']}</td></tr>
+        <tr><td colspan="2">{s['name']}<br><span class="m">Получатель</span></td></tr></table>
+        <h1>Счёт на оплату № {html.escape(q['number'])} от {date}</h1>
+        <div class="lead">Поставщик: {s['name']}, ИНН {s['inn']}, КПП {s['kpp']}, {s['address']}<br>Покупатель: {cust}</div>"""
+        tail = (f'<div class="cond">{disc_line}Оплата счёта означает согласие с условиями поставки (оферта store.softline.ru).<br>'
+                f'Счёт действителен до {valid}. Поставка — электронная, после поступления оплаты.</div>'
+                '<div class="sign">Руководитель ____________ &nbsp;&nbsp;&nbsp; Бухгалтер ____________</div>')
+    else:
+        head = f"""<div class="top"><div>{logo}<div class="addr">119021, город Москва, ул Льва Толстого, д. 5 стр. 1, этаж 3, помещ. 1, ком. №2, 2а (а-311)<br>
+        Т +7 495 232 00 23 | info@softline.com<br>www.softline.ru | www.softline.com</div></div>
+        <div class="to">Куда: {cust}<br><br>Исх. № {html.escape(q['number'])} от {date}</div></div>
+        <h1>Уважаемый заказчик!</h1>
+        <div class="lead">ПАО «Софтлайн» предлагает Вашему вниманию коммерческое предложение на следующих условиях:</div>"""
+        tail = (f'<div class="cond">{disc_line}Цена указана с учетом всех налогов, сборов и других обязательных платежей.<br>'
+                'Условия оплаты: предоплата.<br>Срок поставки: электронная поставка, по сроку вендора (указан на карточке товара).<br>'
+                f'Срок действия коммерческого предложения — до {valid}.</div><div class="sign">Бондаренко Александр<br>Директор департамента</div>')
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
     @page {{ size: A4; margin: 18mm 16mm; }}
     body {{ font-family: 'Montserrat', 'DejaVu Sans', Arial, sans-serif; font-size: 10pt; color: #222; }}
     .top {{ display: flex; justify-content: space-between; }} .logo {{ height: 34px; }}
-    .addr {{ font-size: 8.5pt; color: #555; margin-top: 8px; line-height: 1.35; }}
-    .to {{ text-align: right; font-size: 10pt; }} h1 {{ font-size: 13pt; text-align: center; margin: 26px 0 6px; }}
-    .lead {{ margin: 8px 0 14px; }} table {{ width: 100%; border-collapse: collapse; font-size: 9pt; }}
+    .addr {{ font-size: 8.5pt; color: #555; margin-top: 8px; line-height: 1.35; }} .m {{ font-size: 8pt; color: #666; }}
+    .to {{ text-align: right; font-size: 10pt; }} h1 {{ font-size: 13pt; text-align: center; margin: 22px 0 6px; }}
+    .lead {{ margin: 8px 0 14px; line-height: 1.5; }} table {{ width: 100%; border-collapse: collapse; font-size: 9pt; }}
     th {{ background: #A20D32; color: #fff; padding: 6px 5px; text-align: left; }} td {{ border-bottom: 1px solid #ddd; padding: 6px 5px; vertical-align: top; }}
-    .n {{ text-align: right; white-space: nowrap; }} .tot td {{ font-weight: 700; border-top: 2px solid #A20D32; }}
+    .bank td {{ border: 1px solid #999; }} .n {{ text-align: right; white-space: nowrap; }}
+    .tot td {{ font-weight: 700; border-top: 2px solid #A20D32; }}
     .cond {{ margin-top: 16px; line-height: 1.6; }} .sign {{ margin-top: 30px; }} .badge {{ color: #A20D32; font-size: 8.5pt; margin-top: 18px; }}
-    </style></head><body>
-    <div class="top"><div>{logo}<div class="addr">119021, город Москва, ул Льва Толстого, д. 5 стр. 1, этаж 3, помещ. 1, ком. №2, 2а (а-311)<br>
-    Т +7 495 232 00 23 | info@softline.com<br>www.softline.ru | www.softline.com</div></div>
-    <div class="to">Куда: {cust}<br><br>Исх. № {html.escape(q['number'])} от {date}</div></div>
-    <h1>Уважаемый заказчик!</h1>
-    <div class="lead">ПАО «Софтлайн» предлагает Вашему вниманию коммерческое предложение на следующих условиях:</div>
+    </style></head><body>{head}
     <table><tr><th>Артикул</th><th>Наименование</th><th>Кол-во</th><th>Цена, руб.</th><th>Сумма, руб.</th><th>В т.ч. НДС, руб.</th></tr>
     {rows}<tr class="tot"><td></td><td>Итого</td><td></td><td></td><td class="n">{_rub(q['total'])}</td><td class="n">{_rub(q['vat'])}</td></tr></table>
-    <div class="cond">Цена указана с учетом всех налогов, сборов и других обязательных платежей.<br>
-    Условия оплаты: предоплата.<br>Срок поставки: электронная поставка, по сроку вендора (указан на карточке товара).<br>
-    Срок действия коммерческого предложения — до {valid}.</div>
-    <div class="sign">Бондаренко Александр<br>Директор департамента</div>
+    {tail}
     <div class="badge">{status}. Сформировано ИИ-агентом store.softline.ru по ценам каталога на {date}.</div>
     </body></html>"""
 

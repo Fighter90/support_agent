@@ -74,3 +74,14 @@ def test_quote_prices_from_catalog():
     assert q['total_rub'] == 95616.0 and q['vat_rub'] > 0
     with pytest.raises(quotes.QuoteError):
         quotes.create(cid, [{'offer_id': 999, 'quantity': 1}])  # позиция без цены — только через менеджера
+
+
+def test_discount_limit_and_invoice():
+    from app import quotes
+    cid = agent.new_conversation()
+    inv = quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}], discount_percent=5, kind='invoice')
+    assert inv['kind'] == 'invoice' and inv['number'].startswith('СЧ-') and inv['total_rub'] == round(47808 * 0.95, 2)
+    with pytest.raises(quotes.QuoteError):
+        quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}], discount_percent=15)  # больше 5% — только менеджер
+    html = quotes.render_html({**quotes.get(inv['quote_id']), 'customer': {'company': 'ООО Тест', 'inn': '7701234567'}})
+    assert 'Счёт на оплату' in html and '7736227885' in html and 'скидка 5%' in html.lower()

@@ -59,10 +59,14 @@ TOOLS: list[dict[str, Any]] = [
         'parameters': {'type': 'object', 'properties': {'query': {'type': 'string'}}, 'required': ['query']}}},
     {'type': 'function', 'function': {
         'name': 'create_quote',
-        'description': 'Сформировать черновик коммерческого предложения, когда клиент согласился с выбором. Цены берутся из каталога автоматически.',
-        'parameters': {'type': 'object', 'properties': {'items': {'type': 'array', 'items': {'type': 'object', 'properties': {
-            'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer'}}, 'required': ['offer_id', 'quantity']}}},
-            'required': ['items']}}},
+        'description': 'Сформировать коммерческое предложение (document="quote") или счёт на оплату (document="invoice"), когда клиент '
+                       'согласился с выбором. Цены берутся из каталога автоматически. Скидка — только если клиент просит скидку или отсрочку, не больше 5%.',
+        'parameters': {'type': 'object', 'properties': {
+            'items': {'type': 'array', 'items': {'type': 'object', 'properties': {
+                'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer'}}, 'required': ['offer_id', 'quantity']}},
+            'document': {'type': 'string', 'enum': ['quote', 'invoice'], 'description': 'КП (по умолчанию) или счёт на оплату'},
+            'discount_percent': {'type': 'number', 'description': 'Скидка 0–5% по просьбе клиента; больше — только через менеджера'},
+        }, 'required': ['items']}}},
     {'type': 'function', 'function': {
         'name': 'escalate_to_manager',
         'description': 'Передать обращение менеджеру: цена по запросу, скидки и спецусловия, тендеры, вопросы по заказу, '
@@ -106,12 +110,15 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
         return {'articles': arts}
     if name == 'create_quote':
         try:
-            q = quotes.create(conv_id, list(args.get('items') or []))
-        except quotes.QuoteError as e:
-            return {'error': str(e), 'hint': 'Позиции без цены передай менеджеру через escalate_to_manager.'}
-        ctx['prices'].update([q['total_rub'], *[i['price'] for i in q['items']], *[i['total'] for i in q['items']]])
-        ctx['quote'] = {'quote_id': q['quote_id'], 'number': q['number'], 'total_rub': q['total_rub'], 'status': q['status']}
-        return {**q, 'next_step': 'Скажи клиенту, что черновик КП готов и нужно заполнить реквизиты в форме под сообщением.'}
+            q = quotes.create(conv_id, list(args.get('items') or []), args.get('discount_percent') or 0, args.get('document') or 'quote')
+        except (quotes.QuoteError, ValueError, TypeError) as e:
+            return {'error': str(e), 'hint': 'Позиции без цены и скидки больше 5% передай менеджеру через escalate_to_manager.'}
+        ctx['prices'].update([q['total_rub'], *[i['price'] for i in q['items']], *[i['total'] for i in q['items']],
+                              *[i['list_price'] for i in q['items']]])
+        ctx['quote'] = {'quote_id': q['quote_id'], 'number': q['number'], 'total_rub': q['total_rub'], 'status': q['status'],
+                        'kind': q['kind'], 'discount': q['discount_percent']}
+        doc = 'счёт' if q['kind'] == 'invoice' else 'КП'
+        return {**q, 'next_step': f'Скажи клиенту, что {doc} {q["number"]} подготовлен и нужно заполнить реквизиты в форме под сообщением.'}
     if name == 'escalate_to_manager':
         reason = args.get('reason') if args.get('reason') in REASONS else 'other'
         eid = db.execute('INSERT INTO escalations (conv_id, reason, category, summary, created_at) VALUES (?,?,?,?,?)',

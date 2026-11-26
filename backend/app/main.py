@@ -36,7 +36,8 @@ async def lifespan(_: FastAPI):
     def refresh_loop() -> None:
         # Каталог: при первом старте — загрузка фида, дальше раз в сутки (по ответу заказчика этого достаточно)
         while True:
-            if not get_settings().catalog_db.exists() or time.time() - get_settings().catalog_db.stat().st_mtime > 86400:
+            st = catalog.stats()
+            if not st.get('offers') or time.time() - get_settings().catalog_db.stat().st_mtime > 86400:
                 try:
                     catalog.ingest()
                 except Exception:  # noqa: BLE001 — ошибка загрузки не роняет сервис, работаем на прежнем каталоге
@@ -127,6 +128,24 @@ async def message(cid: str, body: MessageIn, request: Request) -> dict[str, Any]
         raise HTTPException(503, 'Модель временно недоступна, попробуйте ещё раз') from e
 
 
+@app.post('/api/chat/{cid}/operator')
+def call_operator(cid: str) -> dict[str, Any]:
+    """Кнопка «Позвать оператора»: клиент сам переключается на менеджера (требование заказчика)."""
+    c = _conv(cid)
+    if c['status'] == 'escalated':
+        return {'status': 'already'}
+    last = [m['content'] for m in db.rows("SELECT content FROM messages WHERE conv_id=? AND role='user' ORDER BY id DESC LIMIT 3", (cid,))]
+    summary = 'Клиент нажал «Позвать оператора». Последние вопросы: ' + (' | '.join(reversed(last)) or 'диалог только начат')
+    eid = db.execute('INSERT INTO escalations (conv_id, reason, category, summary, created_at) VALUES (?,?,?,?,?)',
+                     (cid, 'client_request', agent.REASON_RU['client_request'], summary[:2000], db.now()))
+    db.execute("UPDATE conversations SET status='escalated', updated_at=? WHERE id=?", (db.now(), cid))
+    text = 'Подключаю менеджера Softline — он ответит здесь же, в чате. Обычно это занимает пару минут в рабочее время.'
+    mid = db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
+                     (cid, 'assistant', text, db.dumps({'escalation': {'id': eid, 'reason': 'Клиент просит менеджера'}}), db.now()))
+    return {'status': 'escalated', 'message': {'id': mid, 'role': 'assistant', 'content': text,
+                                               'meta': {'escalation': {'id': eid, 'reason': 'Клиент просит менеджера'}}}}
+
+
 @app.post('/api/chat/{cid}/feedback')
 def feedback(cid: str, body: FeedbackIn) -> dict[str, str]:
     _conv(cid)
@@ -143,9 +162,11 @@ async def requisites(qid: str, body: RequisitesIn) -> dict[str, Any]:
         q = await run_in_threadpool(quotes.set_requisites, qid, body.model_dump())
     except quotes.QuoteError as e:
         raise HTTPException(400, str(e)) from e
-    text = (f'Черновик коммерческого предложения {q["number"]} на сумму {q["total"]:,.2f} ₽ сформирован. '
-            'Менеджер проверит его и свяжется с вами; PDF можно скачать по кнопке ниже.').replace(',', ' ')
-    meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'pdf': f'/api/quotes/{qid}/pdf'}}
+    doc = 'Счёт на оплату' if q.get('kind') == 'invoice' else 'Коммерческое предложение'
+    text = (f'{doc} {q["number"]} на сумму {q["total"]:,.2f} ₽ сформирован. '.replace(',', ' ') +
+            'PDF можно скачать по кнопке ниже; менеджер проверит документ и при необходимости свяжется с вами.')
+    meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'kind': q.get('kind'),
+                      'pdf': f'/api/quotes/{qid}/pdf'}}
     db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (q['conv_id'], 'assistant', text, db.dumps(meta), db.now()))
     return {'quote_id': qid, 'number': q['number'], 'status': q['status'], 'pdf': f'/api/quotes/{qid}/pdf'}
 
@@ -306,7 +327,7 @@ if (STATIC / 'index.html').exists():
 
     @app.get('/{path:path}', include_in_schema=False)
     def spa(path: str):
-        if path.startswith('api/'):
+        if path.startswith('api/') or any(part.startswith('.') for part in path.split('/')):
             return JSONResponse({'detail': 'Not found'}, status_code=404)
         f = STATIC / path
         if path and f.is_file() and STATIC in f.resolve().parents:

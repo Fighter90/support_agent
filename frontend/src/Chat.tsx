@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { BadgeCheck, FileText, Headset, Loader2, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
+import { BadgeCheck, Bot, FileText, Headset, Loader2, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
 import { api, rub, type Message, type Quote } from './api'
 import Markdown from './Markdown'
 
@@ -19,7 +19,7 @@ function QuoteCard({ q, onDone }: { q: Quote; onDone: () => void }) {
     return (
       <div className="quote">
         <FileText size={18} />
-        <div><b>{q.number}</b> · {rub(q.total_rub)}<div className="muted">{q.status === 'approved' ? 'Подтверждено менеджером' : 'Черновик, проверяется менеджером'}</div></div>
+        <div><b>{q.kind === 'invoice' ? 'Счёт' : 'КП'} {q.number}</b> · {rub(q.total_rub)}<div className="muted">{q.status === 'approved' ? 'Подтверждено менеджером' : 'Черновик, проверяется менеджером'}</div></div>
         {q.pdf && <a className="btn sm" href={q.pdf} target="_blank" rel="noreferrer">PDF</a>}
       </div>
     )
@@ -31,7 +31,7 @@ function QuoteCard({ q, onDone }: { q: Quote; onDone: () => void }) {
   }
   return (
     <form className="quote-form" onSubmit={submit}>
-      <div className="qf-head"><ShieldCheck size={16} /> Реквизиты для КП {q.number} на {rub(q.total_rub)}</div>
+      <div className="qf-head"><ShieldCheck size={16} /> Реквизиты для {q.kind === 'invoice' ? 'счёта' : 'КП'} {q.number} на {rub(q.total_rub)}{q.discount ? ` (скидка ${q.discount}%)` : ''}</div>
       <div className="muted small">Данные идут сразу в КП и не передаются языковой модели.</div>
       <input placeholder="Название организации" value={f.company} onChange={e => setF({ ...f, company: e.target.value })} required />
       <div className="row2">
@@ -40,7 +40,7 @@ function QuoteCard({ q, onDone }: { q: Quote; onDone: () => void }) {
       </div>
       <input placeholder="E-mail для КП" type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />
       {err && <div className="err">{err}</div>}
-      <button className="btn" disabled={busy}>{busy ? <Loader2 className="spin" size={16} /> : 'Сформировать КП'}</button>
+      <button className="btn" disabled={busy}>{busy ? <Loader2 className="spin" size={16} /> : q.kind === 'invoice' ? 'Сформировать счёт' : 'Сформировать КП'}</button>
     </form>
   )
 }
@@ -97,19 +97,28 @@ export default function Chat() {
     api(`/api/chat/${cid}/feedback`, { body: { message_id: id, rating: v } }).catch(() => {})
   }
 
+  const operator = async () => {
+    if (!cid) return
+    try { const r = await api<{ message?: Message }>(`/api/chat/${cid}/operator`, { method: 'POST' }); if (r.message) setMsgs(m => [...m, r.message!]) } catch (e) { setErr((e as Error).message) }
+  }
+
   const reset = () => { try { localStorage.removeItem(CONV_KEY) } catch { /* ignore */ } setMsgs([]); start() }
 
   return (
     <div className="chat">
       <div className="chat-head">
-        <div className="avatar"><img src="/logo-mark.svg" alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />S</div>
-        <div><b>ИИ-консультант Softline</b><div className="muted small">Подбор лицензий · отвечает сразу, менеджер — в рабочее время</div></div>
-        <button className="link small" onClick={reset}>Новый диалог</button>
+        <div className="avatar"><Bot size={22} /></div>
+        <div><b>ИИ-ассистент Softline</b><div className="muted small">Отвечает виртуальный помощник · менеджер — по кнопке</div></div>
+        <div className="head-actions">
+          <button className="btn sm ghost" onClick={operator} title="Переключиться на живого менеджера"><Headset size={14} /> Позвать оператора</button>
+          <button className="link small" onClick={reset}>Новый диалог</button>
+        </div>
       </div>
       <div className="chat-body" ref={box}>
         {msgs.map(m => (
           <div key={m.id} className={`msg ${m.role}`}>
             {m.role === 'manager' && <div className="who"><Headset size={14} /> Менеджер Softline</div>}
+            {m.role === 'assistant' && <div className="who"><Bot size={14} /> ИИ-ассистент</div>}
             {m.role === 'user' && <div className="who right"><UserRound size={14} /> Вы</div>}
             <div className="bubble">
               <Markdown text={m.content} />
@@ -146,7 +155,7 @@ export default function Chat() {
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(text) } }} />
         <button className="send" disabled={busy || !text.trim()} aria-label="Отправить"><Send size={18} /></button>
       </form>
-      <div className="note">Персональные данные маскируются и обрабатываются на серверах в РФ (152-ФЗ).</div>
+      <div className="note">Ответы готовит ИИ-ассистент по каталогу и базе знаний store.softline.ru · ПДн маскируются и обрабатываются в РФ (152-ФЗ)</div>
     </div>
   )
 }

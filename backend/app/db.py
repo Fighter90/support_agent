@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS escalations (
 );
 CREATE TABLE IF NOT EXISTS quotes (
   id TEXT PRIMARY KEY, number TEXT, conv_id TEXT, items TEXT, total REAL, vat REAL,
-  customer TEXT DEFAULT '{}', status TEXT DEFAULT 'awaiting_requisites', created_at REAL, updated_at REAL
+  customer TEXT DEFAULT '{}', status TEXT DEFAULT 'awaiting_requisites', created_at REAL, updated_at REAL,
+  kind TEXT DEFAULT 'quote',             -- quote (КП) | invoice (счёт на оплату)
+  discount REAL DEFAULT 0                -- скидка агента, % (не больше MAX_AUTO_DISCOUNT)
 );
 CREATE TABLE IF NOT EXISTS kb (
   id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, body TEXT, source TEXT, url TEXT DEFAULT '', created_at REAL

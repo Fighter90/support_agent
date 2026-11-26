@@ -182,10 +182,16 @@ def _db() -> sqlite3.Connection:
 
 
 def stats() -> dict[str, Any]:
+    p = get_settings().catalog_db
+    if not p.exists() or p.stat().st_size == 0:
+        return {}
     try:
-        with _db() as c:
-            r = c.execute("SELECT value FROM meta WHERE key='stats'").fetchone()
+        con = sqlite3.connect(f'file:{p}?mode=ro', uri=True)  # только чтение: не создаёт пустой файл
+        try:
+            r = con.execute("SELECT value FROM meta WHERE key='stats'").fetchone()
             return json.loads(r[0]) if r else {}
+        finally:
+            con.close()
     except sqlite3.Error:
         return {}
 
