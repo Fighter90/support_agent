@@ -231,7 +231,7 @@ function Dialogs() {
 
 function Quotes() {
   const [items, setItems] = useState<any[]>([])
-  const [pays, setPays] = useState<{ enabled: boolean; items: any[] }>({ enabled: false, items: [] })
+  const [pays, setPays] = useState<{ enabled: boolean; mode?: string; items: any[] }>({ enabled: false, items: [] })
   const [msg, setMsg] = useState('')
   const load = () => {
     api<any[]>('/api/manager/quotes', { auth: true }).then(setItems).catch(() => {})
@@ -249,7 +249,7 @@ function Quotes() {
   }
   return (
     <div className="pad">
-      <p className="muted small">{pays.enabled ? 'Онлайн-оплата подключена через MCP-сервер ЮKassa: ссылка создаётся на сумму документа, статус обновляется автоматически.' : 'Онлайн-оплата ЮKassa не настроена: добавьте YOOKASSA_MCP_TOKEN в .env.'}</p>
+      <p className="muted small">{pays.mode === 'mcp' ? 'Онлайн-оплата: MCP-сервер ЮKassa (create_payment / get_payment). Ссылка создаётся на сумму документа, статус обновляется автоматически.' : 'Онлайн-оплата: демо-режим (без списания денег). Для боевого режима добавьте YOOKASSA_MCP_TOKEN — ссылки будут создаваться через MCP-сервер ЮKassa.'}</p>
       {msg && <div className="ok">{msg}</div>}
       <table className="grid"><thead><tr><th>Номер</th><th>Заказчик</th><th>Позиции</th><th>Сумма</th><th>Статус</th><th>Оплата (ЮKassa)</th><th></th></tr></thead><tbody>
         {items.map(q => (

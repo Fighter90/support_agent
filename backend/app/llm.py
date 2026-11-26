@@ -123,13 +123,13 @@ class GigaChat:
     # на 429 — повтор с нарастающей паузой (другой процесс с тем же ключом мог занять поток)
     _gate = threading.Semaphore(1)
 
-    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2) -> LLMResult:
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2, tool_choice: str = 'auto') -> LLMResult:
         t0 = time.time()
         payload: dict[str, Any] = {'model': self.model, 'messages': self._convert(messages),
                                    'temperature': temperature, 'max_tokens': 1500}
         if tools:
             payload['functions'] = [t['function'] for t in tools]
-            payload['function_call'] = 'auto'
+            payload['function_call'] = tool_choice  # 'none' — обязательный текстовый ответ по уже собранным данным
         url = f'{self.s.gigachat_api_url}/chat/completions'
         with self._gate:
             for attempt in range(5):
@@ -185,11 +185,12 @@ class YandexGPT:
                 out.append({'role': m['role'], 'content': m.get('content') or ''})
         return out
 
-    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2) -> LLMResult:
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2, tool_choice: str = 'auto') -> LLMResult:
         t0 = time.time()
         payload: dict[str, Any] = {'model': self.model, 'messages': self._convert(messages), 'temperature': temperature, 'max_tokens': 1500}
         if tools:
             payload['tools'] = tools
+            payload['tool_choice'] = tool_choice
         r = self.http.post(f'{self.s.yandex_api_url}/chat/completions', json=payload,
                            headers={'Authorization': f'Api-Key {self.s.yandex_api_key}', 'OpenAI-Project': self.s.yandex_folder_id})
         if r.status_code >= 400:
@@ -218,8 +219,10 @@ class MockLLM:
     def available(self) -> bool:
         return True
 
-    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.0) -> LLMResult:
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.0, tool_choice: str = 'auto') -> LLMResult:
         last = messages[-1]
+        if tool_choice == 'none' and last['role'] != 'tool':
+            last = next((m for m in reversed(messages) if m['role'] == 'tool'), last)
         user = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), '')
         low = user.lower()
         if last['role'] == 'user':

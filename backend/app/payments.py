@@ -38,8 +38,13 @@ def token() -> str:
     return os.environ.get('YOOKASSA_MCP_TOKEN', '')
 
 
+def mode() -> str:
+    """mcp — реальный MCP-сервер ЮKassa по токену; demo — демонстрационный режим без токена (страница /pay/demo/...)."""
+    return 'mcp' if token() else 'demo'
+
+
 def enabled() -> bool:
-    return bool(token())
+    return True  # в демо-режиме оплата показывается на демонстрационной странице с явной пометкой
 
 
 class MCPClient:
@@ -105,16 +110,19 @@ def init() -> None:
 
 
 def create_for_quote(qid: str, created_by: str = 'client') -> dict[str, Any]:
-    if not enabled():
-        raise PaymentError('Онлайн-оплата не настроена (нет токена MCP ЮKassa)')
     q = quotes.get(qid)
     if not q or q['status'] == 'awaiting_requisites':
         raise PaymentError('Сначала нужно сформировать документ с реквизитами')
     existing = db.one("SELECT * FROM payments WHERE quote_id=? AND status IN ('pending','waiting_for_capture') ORDER BY created_at DESC", (qid,))
     if existing:
         return existing
-    res = _client.call('create_payment', {'amount': {'value': f'{q["total"]:.2f}', 'currency': 'RUB'},
-                                          'description': f'Оплата {q["number"]} — store.softline.ru'[:128]})
+    args = {'amount': {'value': f'{q["total"]:.2f}', 'currency': 'RUB'}, 'description': f'Оплата {q["number"]} — store.softline.ru'[:128]}
+    if mode() == 'mcp':
+        res = _client.call('create_payment', args)
+    else:  # демо: тот же контракт ответа, что у create_payment MCP-сервера
+        did = 'demo-' + db.new_id()
+        from app.config import get_settings
+        res = {'id': did, 'status': 'pending', 'confirmation_url': f'{get_settings().public_url}/pay/demo/{did}'}
     pid = res.get('id')
     if not pid:
         raise PaymentError('ЮKassa не вернула идентификатор платежа')
@@ -125,7 +133,7 @@ def create_for_quote(qid: str, created_by: str = 'client') -> dict[str, Any]:
 
 def refresh(pid: str) -> dict[str, Any] | None:
     p = db.one('SELECT * FROM payments WHERE id=?', (pid,))
-    if p and enabled() and p['status'] not in ('succeeded', 'canceled'):
+    if p and mode() == 'mcp' and not pid.startswith('demo-') and p['status'] not in ('succeeded', 'canceled'):
         try:
             res = _client.call('get_payment', {'id': pid})
             if res.get('status') and res['status'] != p['status']:
@@ -148,3 +156,17 @@ def for_quote(qid: str) -> dict[str, Any] | None:
 def all_payments() -> list[dict[str, Any]]:
     rows = db.rows('SELECT p.*, q.number FROM payments p LEFT JOIN quotes q ON q.id = p.quote_id ORDER BY p.created_at DESC LIMIT 200')
     return [refresh(r['id']) | {'number': r['number']} if r['status'] not in ('succeeded', 'canceled') else r for r in rows]
+
+
+def demo_confirm(pid: str, success: bool = True) -> dict[str, Any]:
+    """Демо-страница оплаты: имитирует подтверждение платежа покупателем (только для платежей demo-*)."""
+    p = db.one('SELECT * FROM payments WHERE id=?', (pid,))
+    if not p or not pid.startswith('demo-'):
+        raise PaymentError('Демо-платёж не найден')
+    if p['status'] == 'pending':
+        status = 'succeeded' if success else 'canceled'
+        db.execute('UPDATE payments SET status=?, updated_at=? WHERE id=?', (status, db.now(), pid))
+        text = (f'Оплата {p["amount"]:,.2f} ₽ получена (демо-режим ЮKassa). Спасибо! Лицензия придёт на e-mail по сроку вендора.'
+                if success else 'Оплата отменена. Можно оплатить позже по ссылке или по счёту.').replace(',', ' ')
+        db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (p['conv_id'], 'system', text, '{}', db.now()))
+    return db.one('SELECT p.*, q.number FROM payments p LEFT JOIN quotes q ON q.id=p.quote_id WHERE p.id=?', (pid,))

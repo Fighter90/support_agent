@@ -118,8 +118,10 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
             ru = {'term': 'срок', 'text': 'слово в названии', 'license_type': 'тип лицензии', 'org_type': 'тип организации', 'users': 'число пользователей'}
             res['note'] = ('Точного совпадения нет; без фильтра «' + '», «'.join(ru[d] for d in dropped) +
                            '» найдены варианты ниже — предложи ближайшие и скажи клиенту, чем они отличаются от запроса.')
+        keep = ('offer_id', 'name', 'price_rub', 'price_note', 'users_max', 'nodes', 'term', 'license_type', 'org_type', 'available')
+        res['variants'] = [{k: v[k] for k in keep if k in v} for v in res.get('variants', [])][:12]
         ctx['prices'].update(v['price_rub'] for v in res.get('variants', []) if v.get('price_rub'))
-        ctx['offers'] = [{'offer_id': v['offer_id'], 'name': v['name'], 'price_rub': v.get('price_rub'), 'url': v.get('url')}
+        ctx['offers'] = [{'offer_id': v['offer_id'], 'name': v['name'], 'price_rub': v.get('price_rub')}
                          for v in res.get('variants', [])[:6]]
         return res
     if name == 'search_knowledge':
@@ -214,12 +216,12 @@ def _known_prices(conv_id: str) -> set[float]:
     return known
 
 
-def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any]) -> llm.LLMResult:
+def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any], tools: list[dict[str, Any]] | None = None) -> llm.LLMResult:
     s = get_settings()
     last_err = ''
     for p in llm.chain():
         try:
-            r = p.chat(messages, TOOLS)
+            r = p.chat(messages, TOOLS, tool_choice='none' if tools == [] else 'auto')
         except Exception as e:  # noqa: BLE001 — любая ошибка модели → резервная модель
             last_err = f'{type(e).__name__}: {str(e)[:300]}'
             logger.warning('LLM %s недоступна: %s', p.name, last_err)
@@ -254,24 +256,43 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
                 '\n'.join(f'— Вопрос: {e["question"][:300]}\n  Ответ: {e["answer"][:600]}' for e in ex)
     messages = [{'role': 'system', 'content': PROMPT + ('\n\n' + note if note else '')}, *history]
     text = ''
-    for _ in range(s.max_agent_steps):
-        r = _call(conv_id, messages, ctx)
+    seen: set[str] = set()
+    repeats = 0
+    for step in range(s.max_agent_steps):
+        last = step == s.max_agent_steps - 1 or repeats >= 2
+        r = _call(conv_id, messages, ctx, tools=[] if last else None)
         if not r.tool_calls:
             text = r.text.strip()
             break
         for tc in r.tool_calls[:2]:
+            key = tc.name + json.dumps(tc.arguments, ensure_ascii=False, sort_keys=True)
             t1 = time.time()
-            try:
-                result = run_tool(conv_id, tc.name, tc.arguments, ctx)
-            except Exception as e:  # noqa: BLE001 — ошибка инструмента отдаётся модели как данные
-                logger.exception('Инструмент %s упал', tc.name)
-                result = {'error': f'{type(e).__name__}: {e}'}
+            if key in seen:  # модель зациклилась на одном вызове — не выполняем, просим ответить по собранным данным
+                repeats += 1
+                result = {'note': 'Этот инструмент уже вызывался с теми же параметрами — результат есть выше. '
+                                  'Не вызывай его снова: ответь клиенту по уже полученным данным или задай уточняющий вопрос.'}
+            else:
+                seen.add(key)
+                try:
+                    result = run_tool(conv_id, tc.name, tc.arguments, ctx)
+                except Exception as e:  # noqa: BLE001 — ошибка инструмента отдаётся модели как данные
+                    logger.exception('Инструмент %s упал', tc.name)
+                    result = {'error': f'{type(e).__name__}: {e}'}
             payload = json.dumps(result, ensure_ascii=False, default=str)
             ctx['tools'].append({'tool': tc.name, 'args': tc.arguments})
             db.execute('INSERT INTO tool_calls (conv_id, tool, args, result, ms, created_at) VALUES (?,?,?,?,?,?)',
                        (conv_id, tc.name, db.dumps(tc.arguments), payload[:4000], int((time.time() - t1) * 1000), db.now()))
             messages.append({'role': 'assistant', 'content': r.text or '', 'tool_calls': [{'id': tc.id, 'name': tc.name, 'arguments': tc.arguments}]})
-            messages.append({'role': 'tool', 'tool_call_id': tc.id, 'name': tc.name, 'content': payload[:12000]})
+            messages.append({'role': 'tool', 'tool_call_id': tc.id, 'name': tc.name, 'content': payload[:9000]})
+    if not text:
+        # Последняя попытка: ответ без инструментов по всему, что уже собрано (вместо заглушки)
+        messages.append({'role': 'user', 'content': '(Системное) Ответь клиенту сейчас, используя уже полученные данные инструментов. '
+                                                     'Если данных не хватает — задай один уточняющий вопрос.'})
+        try:
+            r = _call(conv_id, messages, ctx, tools=[])
+            text = (r.text or '').strip()
+        except llm.LLMError:
+            text = ''
     if not text:
         text = 'Сейчас не получается подобрать ответ автоматически — передаю вопрос менеджеру, он ответит в этом чате.'
         if not ctx.get('escalation'):

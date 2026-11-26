@@ -115,7 +115,7 @@ class FixIn(BaseModel):
 
 @app.get('/api/health')
 def health() -> dict[str, Any]:
-    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled()}
+    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled(), 'payments_mode': payments.mode()}
 
 
 @app.post('/api/chat/start')
@@ -193,6 +193,22 @@ async def pay(qid: str, request: Request) -> dict[str, Any]:
     except payments.PaymentError as e:
         raise HTTPException(400, str(e)) from e
     return {'url': p['url'], 'status': p['status'], 'id': p['id']}
+
+
+@app.get('/api/payments/demo/{pid}')
+def demo_payment(pid: str) -> dict[str, Any]:
+    p = db.one('SELECT p.id, p.amount, p.status, q.number FROM payments p LEFT JOIN quotes q ON q.id=p.quote_id WHERE p.id=?', (pid,))
+    if not p or not pid.startswith('demo-'):
+        raise HTTPException(404, 'Платёж не найден')
+    return p
+
+
+@app.post('/api/payments/demo/{pid}/{action}')
+def demo_payment_action(pid: str, action: str) -> dict[str, Any]:
+    try:
+        return payments.demo_confirm(pid, action == 'pay')
+    except payments.PaymentError as e:
+        raise HTTPException(404, str(e)) from e
 
 
 @app.get('/api/quotes/{qid}/payment')
@@ -365,7 +381,7 @@ async def manager_payment_link(qid: str, m: dict = Depends(auth.manager)) -> dic
 
 @app.get('/api/manager/payments')
 async def manager_payments(m: dict = Depends(auth.manager)) -> dict[str, Any]:
-    return {'enabled': payments.enabled(), 'items': await run_in_threadpool(payments.all_payments)}
+    return {'enabled': payments.enabled(), 'mode': payments.mode(), 'items': await run_in_threadpool(payments.all_payments)}
 
 
 @app.get('/api/manager/quotes')
