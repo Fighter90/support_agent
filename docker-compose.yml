@@ -7,6 +7,7 @@ services:
     env_file: .env
     environment:
       DATA_DIR: /app/data
+      TZ: Europe/Moscow
     volumes:
       - ./data/runtime:/app/data
       - ./data/kb:/app/data/kb:ro
