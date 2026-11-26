@@ -126,6 +126,13 @@ export default function Chat() {
     return () => clearInterval(t)
   }, [cid, msgs, busy])
 
+  // Поисковая строка витрины → вопрос ассистенту
+  useEffect(() => {
+    const f = (e: Event) => { const q = (e as CustomEvent).detail as string; if (q) send(`Подберите, пожалуйста: ${q}`) }
+    window.addEventListener('sl-ask', f)
+    return () => window.removeEventListener('sl-ask', f)
+  })
+
   useEffect(() => { box.current?.scrollTo({ top: box.current.scrollHeight, behavior: 'smooth' }) }, [msgs, busy])
 
   const send = async (t: string) => {

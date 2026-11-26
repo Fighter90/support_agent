@@ -118,6 +118,19 @@ def health() -> dict[str, Any]:
     return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled(), 'payments_mode': payments.mode()}
 
 
+@app.get('/api/catalog/search')
+def catalog_search(q: str = Query('', max_length=200), request: Request = None) -> dict[str, Any]:
+    """Поисковая строка витрины: продуктовые линейки по запросу (тот же поиск, что у агента)."""
+    if request:
+        _limit(request, 120, 60)
+    if len(q.strip()) < 2:
+        return {'items': []}
+    res = catalog.search(q, {'only_available': False}, limit=8)
+    return {'items': [{'group_id': r['group_id'], 'product': r['product'], 'vendor': r['vendor'], 'category': r['category'],
+                       'url': r['url'], 'price_from_rub': r['price_from_rub'], 'domestic': r['domestic'],
+                       'variants': r['variants_available']} for r in res]}
+
+
 @app.post('/api/chat/start')
 def start(body: StartIn, request: Request) -> dict[str, Any]:
     _limit(request, 20)

@@ -27,7 +27,13 @@ button, input, textarea { font: inherit; }
 .topbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
 .topbar-in { display: flex; align-items: center; gap: 28px; height: 68px; }
 .brand img { height: 34px; display: block; }
-.search { flex: 1; max-width: 520px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--muted); font-size: 14px; }
+.search { flex: 1; max-width: 520px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; color: var(--muted); font-size: 14px; position: relative; }
+.search input { border: 0; outline: none; flex: 1; font-size: 14px; background: transparent; }
+.search:focus-within { border-color: var(--red); }
+.suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 20; overflow: hidden; max-height: 70vh; overflow-y: auto; }
+.sg { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); align-items: center; }
+.sg:hover { background: var(--red-soft); } .sg-price { color: var(--red); font-weight: 700; white-space: nowrap; font-size: 13px; }
+.sg.ask { width: 100%; border: 0; background: #FAFAFB; color: var(--red); font-weight: 600; cursor: pointer; text-align: left; }
 .topbar nav { display: flex; gap: 22px; margin-left: auto; } .topbar nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
 .topbar nav a:hover { color: var(--red); }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 40px; padding-top: 36px; padding-bottom: 36px; flex: 1; align-items: start; }
