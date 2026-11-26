@@ -169,6 +169,9 @@ def ingest(src: str | None = None) -> dict[str, Any]:
     con.commit()
     con.close()
     os.replace(tmp, s.catalog_db)
+    dl = Path(s.data_dir) / 'feed.download'
+    if dl.exists() and str(dl) == src:
+        dl.unlink()  # скачанный фид (~290 МБ) после разбора не нужен
     logger.info('Каталог загружен: %s', stats)
     return stats
 

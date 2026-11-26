@@ -119,6 +119,10 @@ class GigaChat:
                 out.append({'role': m['role'], 'content': m.get('content') or ''})
         return out
 
+    # Ключ физлица (GIGACHAT_API_PERS) допускает один одновременный запрос: вызовы идут по очереди,
+    # на 429 — повтор с нарастающей паузой (другой процесс с тем же ключом мог занять поток)
+    _gate = threading.Semaphore(1)
+
     def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2) -> LLMResult:
         t0 = time.time()
         payload: dict[str, Any] = {'model': self.model, 'messages': self._convert(messages),
@@ -126,12 +130,17 @@ class GigaChat:
         if tools:
             payload['functions'] = [t['function'] for t in tools]
             payload['function_call'] = 'auto'
-        r = self.http.post(f'{self.s.gigachat_api_url}/chat/completions', json=payload,
-                           headers={'Authorization': f'Bearer {self._auth()}', 'Accept': 'application/json'})
-        if r.status_code == 401:  # токен истёк раньше срока — один повтор с новым
-            self._token = ''
-            r = self.http.post(f'{self.s.gigachat_api_url}/chat/completions', json=payload,
-                               headers={'Authorization': f'Bearer {self._auth()}', 'Accept': 'application/json'})
+        url = f'{self.s.gigachat_api_url}/chat/completions'
+        with self._gate:
+            for attempt in range(5):
+                r = self.http.post(url, json=payload, headers={'Authorization': f'Bearer {self._auth()}', 'Accept': 'application/json'})
+                if r.status_code == 401:  # токен истёк раньше срока — повтор с новым
+                    self._token = ''
+                    continue
+                if r.status_code in (429, 502, 503) and attempt < 4:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                break
         if r.status_code >= 400:
             raise LLMError(f'GigaChat: HTTP {r.status_code} {r.text[:300]}')
         d = r.json()
@@ -253,7 +262,8 @@ def chain() -> list[Any]:
     """Основная модель → резервная → mock (агент отвечает даже при недоступности обеих моделей)."""
     s = get_settings()
     out = []
-    for n in (s.llm_provider, s.llm_fallback_provider, 'mock'):
+    names = [s.llm_provider, s.llm_fallback_provider] + (['mock'] if s.llm_allow_mock else [])
+    for n in names:
         if n and n in ('gigachat', 'yandex', 'mock') and all(p.name != n for p in out):
             p = provider(n)
             if p.available():

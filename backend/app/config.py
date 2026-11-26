@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     yandex_model: str = 'yandexgpt/latest'
     yandex_api_url: str = 'https://llm.api.cloud.yandex.net/v1'
     llm_timeout_s: float = 60.0
+    llm_allow_mock: bool = True  # аварийный режим без модели; в оценке качества выключается
     # Тарифы, ₽ за 1000 токенов с НДС (синхронный режим), действуют с 01.02.2026:
     # GigaChat 2 Max — developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs; YandexGPT Pro 5.1 — aistudio.yandex.ru/docs/ru/ai-studio/pricing
     gigachat_price_per_1k: float = 0.65
