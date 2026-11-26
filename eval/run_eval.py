@@ -29,9 +29,11 @@ sys.path.insert(0, str(ROOT / 'backend'))
 from app import agent, db, kb  # noqa: E402
 
 EXPECT = {
-    'Скидки / льготы / спецусловия': {'escalate_to_manager'},
+    # Встреча с заказчиком 26.11: агент сам даёт скидку до 5% (КП/счёт), больше — менеджер
+    'Скидки / льготы / спецусловия': {'escalate_to_manager', 'create_quote'},
     'Госзакупки / процедуры': {'escalate_to_manager'},
-    'Follow-up / не дозвонился': {'escalate_to_manager'},
+    # Встреча: статус заказа, ключи, документы — ответ по базе знаний (личный кабинет) или менеджер
+    'Follow-up / не дозвонился': {'escalate_to_manager', 'search_knowledge'},
     'Просто цена конкретного товара': {'search_catalog', 'get_product_variants', 'escalate_to_manager'},
     'Доступность вендора (можно ли купить)': {'search_catalog', 'escalate_to_manager'},
     'Конфигурация / спецификация': {'search_catalog', 'get_product_variants', 'escalate_to_manager'},
@@ -86,13 +88,15 @@ def main() -> None:
         tools = [t['tool'] for t in meta.get('tools', [])]
         calls = db.rows('SELECT provider, tokens_in, tokens_out, cost_rub, ok FROM llm_calls WHERE conv_id=?', (cid,))
         exp = EXPECT.get(c['category'])
-        ok = (not exp) or bool(set(tools) & exp)
+        # Уточняющий вопрос без инструментов — нормальный первый шаг многоходового диалога (кроме тендеров)
+        clarify = not tools and r['content'].strip().endswith('?')
+        ok = (not exp) or bool(set(tools) & exp) or (clarify and c['category'] != 'Госзакупки / процедуры')
         results.append({**c, 'tools': tools, 'ok': ok, 'error': err, 'ms': ms, 'answer': r['content'][:500],
-                        'escalated': 'escalate_to_manager' in tools, 'price_guard': bool(meta.get('price_guard')),
+                        'escalated': 'escalate_to_manager' in tools, 'clarify': clarify, 'price_guard': bool(meta.get('price_guard')),
                         'llm_calls': len(calls), 'tokens_in': sum(x['tokens_in'] for x in calls), 'tokens_out': sum(x['tokens_out'] for x in calls),
                         'cost_rub': round(sum(x['cost_rub'] for x in calls), 4), 'provider': meta.get('provider', '')})
         print(f'[{i}/{len(cases)}] {"OK " if ok else "BAD"} {c["category"][:28]:28} {"→".join(tools) or "-":50} {ms} мс', flush=True)
-    must_esc = [r for r in results if EXPECT.get(r['category']) == {'escalate_to_manager'}]
+    must_esc = [r for r in results if r['category'] in ('Госзакупки / процедуры',)]
     n = len(results)
     # Токены по шагам агента — исходные данные для расчёта стоимости одного запроса (docs/cost.xlsx)
     steps = db.rows("SELECT step, provider, count(*) AS calls, avg(tokens_in) AS tin, avg(tokens_out) AS tout FROM llm_calls "
@@ -106,6 +110,8 @@ def main() -> None:
         'routing_accuracy': round(sum(r['ok'] for r in results) / n, 3),
         'escalation_recall': round(sum(r['escalated'] for r in must_esc) / len(must_esc), 3) if must_esc else None,
         'escalation_rate': round(sum(r['escalated'] for r in results) / n, 3),
+        'clarify_rate': round(sum(r['clarify'] for r in results) / n, 3),
+        'tool_routing_strict': round(sum(bool(set(r['tools']) & EXPECT.get(r['category'], set(r['tools']) or {'x'})) for r in results) / n, 3),
         'price_guard_triggered': sum(r['price_guard'] for r in results),
         'errors': sum(bool(r['error']) for r in results),
         'latency_ms_median': statistics.median(r['ms'] for r in results),

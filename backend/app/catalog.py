@@ -254,9 +254,19 @@ def _where(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     return (' AND ' + ' AND '.join(sql)) if sql else '', args
 
 
+_URL_ID = re.compile(r'store\.softline\.ru/[^\s]*?-(\d{3,9})/?')
+
+
 def search(query: str, filters: dict[str, Any] | None = None, limit: int = 8) -> list[dict[str, Any]]:
-    """Продуктовые линейки (группы) по запросу: название, вендор, класс, диапазон цен, пример предложений."""
-    terms = _terms(query)
+    """Продуктовые линейки (группы) по запросу: название, вендор, класс, диапазон цен, пример предложений.
+    Ссылка на карточку store.softline.ru распознаётся по артикулу в конце URL (…-413411/)."""
+    m = _URL_ID.search(query)
+    if m:
+        o = get_offers([int(m.group(1))]).get(int(m.group(1)))
+        if o:  # ищем ровно продуктовую линейку этого артикула
+            query = f'"{o["vendor"]}" ' + (o['product'] or o['name'])
+            filters = {**(filters or {}), 'only_available': False}
+    terms = _terms(_URL_ID.sub(' ', query))
     if not terms:
         return []
     where, args = _where(filters)
