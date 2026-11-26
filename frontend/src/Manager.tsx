@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { BarChart3, BookOpen, CheckCircle2, FileText, Headset, LogOut, MessagesSquare, RefreshCw, ThumbsDown } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsDown } from 'lucide-react'
+import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics'
+type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
@@ -54,6 +55,108 @@ function Dialog({ cid }: { cid: string }) {
           {d.llm_calls.map((c: any, i: number) => <tr key={i}><td>{c.provider} / {c.model}</td><td>{c.tokens_in}</td><td>{c.tokens_out}</td><td>{c.cost_rub}</td><td>{c.ms}</td><td>{c.ok ? 'ok' : c.error}</td></tr>)}
         </tbody></table>
       </details>
+    </div>
+  )
+}
+
+
+// Общий WebSocket кабинета: новые сообщения, эскалации, «печатает…», присутствие менеджеров
+type Ev = { type: string; conv_id?: string; message?: any; [k: string]: any }
+const listeners = new Set<(e: Ev) => void>()
+let sock: WebSocket | null = null
+function useEvents(fn: (e: Ev) => void) {
+  const ref = useRef(fn); ref.current = fn
+  useEffect(() => {
+    const l = (e: Ev) => ref.current(e)
+    listeners.add(l)
+    if (!sock || sock.readyState > 1) {
+      sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/manager?token=${encodeURIComponent(token())}`)
+      sock.onmessage = ev => { const d = JSON.parse(ev.data); listeners.forEach(x => x(d)) }
+      sock.onclose = () => { sock = null; setTimeout(() => listeners.forEach(x => x({ type: 'reconnect' })), 3000) }
+    }
+    return () => { listeners.delete(l) }
+  }, [])
+}
+function sendTyping(conv_id: string) { if (sock?.readyState === 1) sock.send(JSON.stringify({ type: 'typing', conv_id })) }
+
+const QUICK = ['Здравствуйте! Меня зовут ' , 'Подготовлю КП и пришлю сюда в течение 15 минут.', 'Уточните, пожалуйста, количество пользователей и срок лицензии.', 'Для госзакупки пришлите, пожалуйста, ТЗ или проект контракта.', 'Спасибо за обращение! Если появятся вопросы — пишите.']
+
+function LiveChat() {
+  const [list, setList] = useState<any[]>([])
+  const [sel, setSel] = useState('')
+  const [conv, setConv] = useState<any>(null)
+  const [text, setText] = useState('')
+  const [typing, setTyping] = useState(false)
+  const [unread, setUnread] = useState<Record<string, number>>({})
+  const [online, setOnline] = useState(1)
+  const body = useRef<HTMLDivElement>(null)
+  const loadList = () => api<any[]>('/api/manager/conversations', { auth: true }).then(setList).catch(() => {})
+  const loadConv = (cid: string) => api(`/api/manager/conversations/${cid}`, { auth: true }).then(setConv).catch(() => {})
+  useEffect(() => { loadList() }, [])
+  useEffect(() => { if (sel) { loadConv(sel); setUnread(u => ({ ...u, [sel]: 0 })) } }, [sel])
+  useEffect(() => { body.current?.scrollTo({ top: body.current.scrollHeight }) }, [conv, typing])
+  useEvents(e => {
+    if (e.type === 'presence') setOnline(e.managers_online)
+    if (e.type === 'typing' && e.conv_id === sel) { setTyping(true); setTimeout(() => setTyping(false), 3000) }
+    if (e.type === 'message' && e.conv_id) {
+      if (e.conv_id === sel) { setTyping(false); setConv((c: any) => c && !c.messages.some((m: any) => m.id === e.message.id) ? { ...c, messages: [...c.messages, e.message] } : c) }
+      else if (e.message.role === 'user') setUnread(u => ({ ...u, [e.conv_id!]: (u[e.conv_id!] || 0) + 1 }))
+      loadList()
+    }
+    if (e.type === 'escalation') loadList()
+  })
+  const send = async (t: string) => {
+    if (!sel || !t.trim()) return
+    await api(`/api/manager/conversations/${sel}/message`, { auth: true, body: { text: t } }); setText('')
+    setConv((c: any) => c ? { ...c, mode: 'manager' } : c)
+  }
+  const takeover = async (on: boolean) => { await api(`/api/manager/conversations/${sel}/takeover`, { auth: true, body: { on } }); loadConv(sel); loadList() }
+  const visible = list.filter(c => c.n_messages > 1)
+  return (
+    <div className="split">
+      <div className="list">
+        <div className="muted small"><span className="dot" /> Менеджеров онлайн: {online} · обновление в реальном времени</div>
+        {visible.map(c => (
+          <button key={c.id} className={`item ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(c.id)}>
+            <div className="item-top">
+              <span className={`tag ${c.status === 'escalated' ? 'red' : c.mode === 'manager' ? 'green' : ''}`}>{c.mode === 'manager' ? `Ведёт ${c.manager || 'менеджер'}` : c.status === 'escalated' ? 'Ждёт менеджера' : 'Агент'}</span>
+              <span>{unread[c.id] ? <span className="unread">{unread[c.id]}</span> : null} <span className="muted small">{dt(c.updated_at)}</span></span>
+            </div>
+            <div className="item-title">{c.title || 'Без сообщений'}</div>
+          </button>
+        ))}
+      </div>
+      <div className="detail">
+        {!conv ? <div className="muted pad">Выберите диалог. Сообщения клиентов приходят по WebSocket мгновенно; можно взять диалог на себя — агент замолчит, клиент увидит «к диалогу подключился менеджер».</div> : (
+          <div className="live">
+            <div className="live-head">
+              <b>{conv.title?.slice(0, 60) || conv.id}</b>
+              <span className={`tag ${conv.mode === 'manager' ? 'green' : ''}`}>{conv.mode === 'manager' ? 'Ведёт менеджер' : 'Отвечает агент'}</span>
+              <span className="spacer" />
+              {conv.mode === 'manager'
+                ? <button className="btn sm ghost" onClick={() => takeover(false)}><Bot size={14} /> Вернуть агенту</button>
+                : <button className="btn sm" onClick={() => takeover(true)}><Headset size={14} /> Взять диалог</button>}
+            </div>
+            <div className="live-body" ref={body}>
+              {conv.messages.map((m: any) => m.role === 'system' ? <div key={m.id} className="sysmsg">{m.content}</div> : (
+                <div key={m.id} className={`msg ${m.role}`}>
+                  <div className="who">{m.role === 'user' ? 'Клиент' : m.role === 'manager' ? `Менеджер${m.meta?.manager ? ' · ' + m.meta.manager : ''}` : 'ИИ-ассистент'} · {dt(m.created_at)}
+                    {m.meta?.tools?.length ? <span className="tools"> · {m.meta.tools.map((x: any) => x.tool).join(' → ')}</span> : null}</div>
+                  <div className="bubble"><Markdown text={m.content} /></div>
+                </div>))}
+              {typing && <div className="msg user"><div className="bubble typing"><span /><span /><span /> Клиент печатает…</div></div>}
+            </div>
+            <div className="live-input">
+              <div className="quick">{QUICK.map(q => <button key={q} onClick={() => setText(text + q)}>{q.length > 40 ? q.slice(0, 40) + '…' : q}</button>)}</div>
+              <div className="row">
+                <textarea rows={2} value={text} placeholder="Ответ клиенту — придёт в его чат мгновенно" onChange={e => { setText(e.target.value); sendTyping(sel) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(text) } }} />
+                <button className="btn" onClick={() => send(text)}><Send size={16} /></button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -128,7 +231,16 @@ function Dialogs() {
 
 function Quotes() {
   const [items, setItems] = useState<any[]>([])
-  const load = () => api<any[]>('/api/manager/quotes', { auth: true }).then(setItems).catch(() => {})
+  const [pays, setPays] = useState<{ enabled: boolean; items: any[] }>({ enabled: false, items: [] })
+  const [msg, setMsg] = useState('')
+  const load = () => {
+    api<any[]>('/api/manager/quotes', { auth: true }).then(setItems).catch(() => {})
+    api('/api/manager/payments', { auth: true }).then(setPays).catch(() => {})
+  }
+  const link = async (id: string) => {
+    try { await api(`/api/manager/quotes/${id}/payment-link`, { auth: true, method: 'POST' }); setMsg('Ссылка на оплату ЮKassa отправлена клиенту в чат'); load() } catch (e) { setMsg((e as Error).message) }
+  }
+  const payOf = (id: string) => pays.items.find(p => p.quote_id === id)
   useEffect(() => { load() }, [])
   const approve = async (id: string) => { await api(`/api/manager/quotes/${id}/approve`, { auth: true, method: 'POST' }); load() }
   const pdf = async (id: string) => {
@@ -137,7 +249,9 @@ function Quotes() {
   }
   return (
     <div className="pad">
-      <table className="grid"><thead><tr><th>Номер</th><th>Заказчик</th><th>Позиции</th><th>Сумма</th><th>Статус</th><th></th></tr></thead><tbody>
+      <p className="muted small">{pays.enabled ? 'Онлайн-оплата подключена через MCP-сервер ЮKassa: ссылка создаётся на сумму документа, статус обновляется автоматически.' : 'Онлайн-оплата ЮKassa не настроена: добавьте YOOKASSA_MCP_TOKEN в .env.'}</p>
+      {msg && <div className="ok">{msg}</div>}
+      <table className="grid"><thead><tr><th>Номер</th><th>Заказчик</th><th>Позиции</th><th>Сумма</th><th>Статус</th><th>Оплата (ЮKassa)</th><th></th></tr></thead><tbody>
         {items.map(q => (
           <tr key={q.id}>
             <td>{q.number}<div className="muted small">{dt(q.created_at)}</div></td>
@@ -145,7 +259,8 @@ function Quotes() {
             <td>{q.items.map((i: any) => <div key={i.offer_id} className="small">{i.quantity} × {i.name}</div>)}</td>
             <td>{rub(q.total)}</td>
             <td><span className={`tag ${q.status === 'approved' ? 'green' : ''}`}>{{ awaiting_requisites: 'Ждём реквизиты', draft: 'Черновик', approved: 'Подтверждено' }[q.status as string]}</span></td>
-            <td className="nowrap">{q.status !== 'awaiting_requisites' && <button className="btn sm ghost" onClick={() => pdf(q.id)}>PDF</button>} {q.status === 'draft' && <button className="btn sm" onClick={() => approve(q.id)}>Подтвердить</button>}</td>
+            <td>{payOf(q.id) ? <span className={`tag ${payOf(q.id).status === 'succeeded' ? 'green' : ''}`}>{({ pending: 'Ожидает оплаты', succeeded: 'Оплачен', canceled: 'Отменён', waiting_for_capture: 'Ожидает подтверждения' } as any)[payOf(q.id).status] || payOf(q.id).status}</span> : '—'}</td>
+            <td className="nowrap">{q.status !== 'awaiting_requisites' && <button className="btn sm ghost" onClick={() => pdf(q.id)}>PDF</button>} {q.status === 'draft' && <button className="btn sm" onClick={() => approve(q.id)}>Подтвердить</button>} {pays.enabled && q.status !== 'awaiting_requisites' && !payOf(q.id) && <button className="btn sm ghost" onClick={() => link(q.id)}><CreditCard size={13} /> Ссылка на оплату</button>}</td>
           </tr>
         ))}
       </tbody></table>
@@ -236,10 +351,10 @@ function Metrics() {
 
 export default function Manager() {
   const [authed, setAuthed] = useState(!!token())
-  const [tab, setTab] = useState<Tab>('escalations')
+  const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsDown], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsDown], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
   return (
     <div className="mgr">
       <aside>
@@ -251,6 +366,7 @@ export default function Manager() {
       </aside>
       <section className="mgr-main">
         <h2>{tabs.find(t => t[0] === tab)![1]}</h2>
+        {tab === 'live' && <LiveChat />}
         {tab === 'escalations' && <Escalations />}
         {tab === 'dialogs' && <Dialogs />}
         {tab === 'quotes' && <Quotes />}

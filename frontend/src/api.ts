@@ -1,7 +1,7 @@
 export type Product = { group_id: number; product: string; vendor: string; url: string; price_from_rub: number | null; domestic: boolean; registry: string }
 export type Quote = { quote_id: string; number: string; total_rub: number; status: string; pdf?: string; kind?: string; discount?: number }
 export type Meta = { products?: Product[]; quote?: Quote; escalation?: { id: number; reason: string }; kb?: { title: string; url: string; source: string }[]; [k: string]: unknown }
-export type Message = { id: number; role: 'user' | 'assistant' | 'manager' | 'tool'; content: string; meta: Meta; created_at?: number }
+export type Message = { id: number; role: 'user' | 'assistant' | 'manager' | 'tool' | 'system'; content: string; meta: Meta; created_at?: number }
 
 const TOKEN_KEY = 'sl_manager_token'
 

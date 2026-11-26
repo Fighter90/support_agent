@@ -8,13 +8,13 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import agent, auth, catalog, db, kb, learning, llm, pii, quotes
+from app import agent, auth, catalog, db, hub, kb, learning, llm, payments, pii, quotes
 from app.config import ROOT_DIR, get_settings
 
 logger = logging.getLogger('support_agent')
@@ -45,7 +45,12 @@ async def lifespan(_: FastAPI):
             time.sleep(3600)
 
     threading.Thread(target=refresh_loop, daemon=True, name='feed-refresh').start()
+    payments.init()
+    import asyncio
+
+    task = asyncio.create_task(hub.broadcaster())
     yield
+    task.cancel()
 
 
 app = FastAPI(title='ИИ-агент поддержки store.softline.ru', version='1.0.0', lifespan=lifespan, docs_url='/api/docs', openapi_url='/api/openapi.json')
@@ -110,7 +115,7 @@ class FixIn(BaseModel):
 
 @app.get('/api/health')
 def health() -> dict[str, Any]:
-    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()]}
+    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled()}
 
 
 @app.post('/api/chat/start')
@@ -130,7 +135,13 @@ def history(cid: str, after: int = 0) -> dict[str, Any]:
 @app.post('/api/chat/{cid}/message')
 async def message(cid: str, body: MessageIn, request: Request) -> dict[str, Any]:
     _limit(request)
-    _conv(cid)
+    c = _conv(cid)
+    if c.get('mode') == 'manager':
+        # Диалог ведёт менеджер: агент молчит, сообщение мгновенно уходит менеджеру по WebSocket
+        mid = db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)',
+                         (cid, 'user', pii.mask(cid, body.text.strip()), db.now()))
+        db.execute('UPDATE conversations SET updated_at=? WHERE id=?', (db.now(), cid))
+        return {'queued': True, 'id': mid, 'manager': c.get('manager', '')}
     try:
         return await run_in_threadpool(agent.reply, cid, body.text)
     except llm.LLMError as e:
@@ -154,6 +165,40 @@ def call_operator(cid: str) -> dict[str, Any]:
                      (cid, 'assistant', text, db.dumps({'escalation': {'id': eid, 'reason': 'Клиент просит менеджера'}}), db.now()))
     return {'status': 'escalated', 'message': {'id': mid, 'role': 'assistant', 'content': text,
                                                'meta': {'escalation': {'id': eid, 'reason': 'Клиент просит менеджера'}}}}
+
+
+@app.websocket('/ws/chat/{cid}')
+async def ws_chat(ws: WebSocket, cid: str) -> None:
+    await hub.client_socket(ws, cid)
+
+
+@app.websocket('/ws/manager')
+async def ws_manager(ws: WebSocket, token: str = Query('')) -> None:
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    try:
+        auth.manager(HTTPAuthorizationCredentials(scheme='Bearer', credentials=token))
+    except HTTPException:
+        await ws.close(code=4401)
+        return
+    await hub.manager_socket(ws)
+
+
+@app.post('/api/quotes/{qid}/pay')
+async def pay(qid: str, request: Request) -> dict[str, Any]:
+    """Ссылка на оплату через MCP ЮKassa — только для своего документа, сумма из КП/счёта."""
+    _limit(request, 10)
+    try:
+        p = await run_in_threadpool(payments.create_for_quote, qid, 'client')
+    except payments.PaymentError as e:
+        raise HTTPException(400, str(e)) from e
+    return {'url': p['url'], 'status': p['status'], 'id': p['id']}
+
+
+@app.get('/api/quotes/{qid}/payment')
+async def payment_status(qid: str) -> dict[str, Any]:
+    p = await run_in_threadpool(payments.for_quote, qid)
+    return {'payment': p}
 
 
 @app.post('/api/chat/{cid}/feedback')
@@ -270,6 +315,57 @@ def conversation(cid: str, m: dict = Depends(auth.manager)) -> dict[str, Any]:
             'llm_calls': db.rows('SELECT provider, model, tokens_in, tokens_out, cost_rub, ms, ok, error, created_at FROM llm_calls WHERE conv_id=? ORDER BY id', (cid,)),
             'quotes': db.rows('SELECT id, number, total, status, created_at FROM quotes WHERE conv_id=?', (cid,)),
             'pii_masked': db.rows('SELECT token, kind FROM pii WHERE conv_id=?', (cid,))}
+
+
+class ManagerMessageIn(BaseModel):
+    text: str = Field(min_length=1, max_length=6000)
+
+
+class TakeoverIn(BaseModel):
+    on: bool = True
+
+
+@app.post('/api/manager/conversations/{cid}/takeover')
+def takeover(cid: str, body: TakeoverIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Менеджер берёт диалог (агент замолкает) или возвращает его агенту."""
+    _conv(cid)
+    db.execute('UPDATE conversations SET mode=?, manager=?, updated_at=? WHERE id=?',
+               ('manager' if body.on else 'agent', m['name'] if body.on else '', db.now(), cid))
+    text = (f'К диалогу подключился {m["name"]}. Отвечаю вам лично.' if body.on else
+            'Менеджер передал диалог ИИ-ассистенту. Я на связи — задавайте вопросы.')
+    db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (cid, 'system', text, '{}', db.now()))
+    if body.on:
+        db.execute("UPDATE escalations SET status='answered', manager=?, answered_at=? WHERE conv_id=? AND status='open'", (m['name'], db.now(), cid))
+    return {'mode': 'manager' if body.on else 'agent'}
+
+
+@app.post('/api/manager/conversations/{cid}/message')
+def manager_message(cid: str, body: ManagerMessageIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    c = _conv(cid)
+    if c.get('mode') != 'manager':
+        db.execute('UPDATE conversations SET mode=?, manager=? WHERE id=?', ('manager', m['name'], cid))
+    mid = db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
+                     (cid, 'manager', body.text.strip(), db.dumps({'manager': m['name']}), db.now()))
+    db.execute('UPDATE conversations SET updated_at=? WHERE id=?', (db.now(), cid))
+    return {'id': mid}
+
+
+@app.post('/api/manager/quotes/{qid}/payment-link')
+async def manager_payment_link(qid: str, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    try:
+        p = await run_in_threadpool(payments.create_for_quote, qid, m['name'])
+    except payments.PaymentError as e:
+        raise HTTPException(400, str(e)) from e
+    q = quotes.get(qid)
+    db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
+               (q['conv_id'], 'manager', f'Ссылка на онлайн-оплату {q["number"]} через ЮKassa: {p["url"]}',
+                db.dumps({'manager': m['name'], 'payment': {'url': p['url'], 'status': p['status']}}), db.now()))
+    return p
+
+
+@app.get('/api/manager/payments')
+async def manager_payments(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    return {'enabled': payments.enabled(), 'items': await run_in_threadpool(payments.all_payments)}
 
 
 @app.get('/api/manager/quotes')

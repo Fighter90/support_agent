@@ -44,18 +44,37 @@ def load_base() -> int:
     return n
 
 
+# Разговорные формы → слова из статей (найдено оценкой RAGAS: «вернуть деньги» не находило «возврат денежных средств»)
+SYNONYMS = {
+    'верн': ['возврат'], 'вернуть': ['возврат'], 'деньг': ['денежн'], 'забыл': ['восстанов'], 'парол': ['пароль'],
+    'мейл': ['почт', 'email'], 'e-mail': ['почт'], 'email': ['почт'], 'почт': ['email'], 'ключ': ['дистрибутив'],
+    'отменит': ['отмен'], 'закрывающ': ['бухгалтерск', 'упд'], 'документ': ['бухгалтерск'], 'доставк': ['сроки'],
+    'оплат': ['оплатить'], 'скидк': ['промокод'], 'гарант': ['гарантии'], 'кабинет': ['личный'],
+}
+
+
+def _expand(terms: list[str]) -> list[str]:
+    out = list(terms)
+    for t in terms:
+        stem = t.strip('"*')
+        for k, extra in SYNONYMS.items():
+            if stem.startswith(k) or k.startswith(stem):
+                out += [f'"{e}"*' for e in extra]
+    return list(dict.fromkeys(out))[:14]
+
+
 def search(query: str, limit: int = 3) -> list[dict[str, Any]]:
     terms = _terms(query)
     if not terms:
         return []
     found: dict[int, dict[str, Any]] = {}
-    for joiner in (' AND ', ' OR '):
+    for joiner, ts in ((' AND ', terms), (' OR ', _expand(terms))):
         if len(found) >= limit:
             break
         try:
-            rs = db.rows('SELECT kb.id, kb.title, kb.body, kb.source, kb.url, bm25(kb_fts, 3.0, 1.0) AS rank FROM kb_fts '
+            rs = db.rows('SELECT kb.id, kb.title, kb.body, kb.source, kb.url, bm25(kb_fts, 5.0, 1.0) AS rank FROM kb_fts '
                          'JOIN kb ON kb.id = kb_fts.rowid WHERE kb_fts MATCH ? ORDER BY rank LIMIT ?',
-                         (joiner.join(terms), limit))
+                         (joiner.join(ts), limit))
         except Exception:  # noqa: BLE001 — неудачный синтаксис запроса FTS просто не даёт результатов
             continue
         for r in rs:

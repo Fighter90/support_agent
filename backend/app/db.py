@@ -104,6 +104,8 @@ MIGRATIONS = [  # новые колонки для баз, созданных п
     "ALTER TABLE quotes ADD COLUMN kind TEXT DEFAULT 'quote'",
     'ALTER TABLE quotes ADD COLUMN discount REAL DEFAULT 0',
     "ALTER TABLE llm_calls ADD COLUMN step TEXT DEFAULT ''",
+    "ALTER TABLE conversations ADD COLUMN mode TEXT DEFAULT 'agent'",   # agent | manager (менеджер ведёт диалог сам)
+    "ALTER TABLE conversations ADD COLUMN manager TEXT DEFAULT ''",
 ]
 
 

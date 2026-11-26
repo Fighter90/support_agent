@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { BadgeCheck, Bot, FileText, Headset, Loader2, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
+import { BadgeCheck, Bot, CreditCard, FileText, Headset, Loader2, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
 import { api, rub, type Message, type Quote } from './api'
 import Markdown from './Markdown'
 
@@ -10,6 +10,22 @@ const PROMPTS = [
   'Есть российский аналог?',
   'Цены указаны с НДС?',
 ]
+
+let payEnabled = false
+fetch('/api/health').then(r => r.json()).then(d => { payEnabled = !!d.payments }).catch(() => {})
+
+function PayButton({ qid }: { qid: string }) {
+  const [st, setSt] = useState<{ busy?: boolean; err?: string; status?: string }>({})
+  const pay = async () => {
+    setSt({ busy: true })
+    try {
+      const r = await api<{ url: string; status: string }>(`/api/quotes/${qid}/pay`, { method: 'POST' })
+      setSt({ status: r.status }); if (r.url) window.open(r.url, '_blank')
+    } catch (e) { setSt({ err: (e as Error).message }) }
+  }
+  if (st.status === 'succeeded') return <span className="tag green">Оплачено</span>
+  return <button className="btn sm ghost" onClick={pay} disabled={st.busy} title={st.err || 'Оплата картой или СБП через ЮKassa'}><CreditCard size={14} /> {st.err ? 'Ошибка оплаты' : 'Оплатить онлайн'}</button>
+}
 
 function QuoteCard({ q, onDone, filled }: { q: Quote; onDone: () => void; filled: boolean }) {
   const [f, setF] = useState({ company: '', inn: '', kpp: '', email: '' })
@@ -24,6 +40,7 @@ function QuoteCard({ q, onDone, filled }: { q: Quote; onDone: () => void; filled
         <FileText size={18} />
         <div><b>{q.kind === 'invoice' ? 'Счёт' : 'КП'} {q.number}</b> · {rub(q.total_rub)}<div className="muted">{q.status === 'approved' ? 'Подтверждено менеджером' : 'Черновик, проверяется менеджером'}</div></div>
         {q.pdf && <a className="btn sm" href={q.pdf} target="_blank" rel="noreferrer">PDF</a>}
+        {payEnabled && <PayButton qid={q.quote_id} />}
       </div>
     )
   }
@@ -55,6 +72,9 @@ export default function Chat() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [rated, setRated] = useState<Record<number, number>>({})
+  const [mgrTyping, setMgrTyping] = useState(false)
+  const [mgrMode, setMgrMode] = useState(false)
+  const ws = useRef<WebSocket | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const [survey, setSurvey] = useState<{ resolved?: boolean; score?: number; comment: string; sent: boolean }>({ comment: '', sent: false })
   const filledQuotes = new Set(msgs.filter(x => x.meta?.quote && x.meta.quote.status !== 'awaiting_requisites').map(x => x.meta.quote!.quote_id))
@@ -77,10 +97,32 @@ export default function Chat() {
     if (id) { setCid(id); load(id).catch(() => start()) } else start().catch(e => setErr(e.message))
   }, [])
 
-  // Ответы менеджера приходят в тот же чат: опрос раз в 4 секунды
+  // Реалтайм: сообщения менеджера и системные события приходят по WebSocket; опрос раз в 15 с — запасной канал
   useEffect(() => {
     if (!cid) return
-    const t = setInterval(() => { if (!busy) load(cid, msgs.length ? msgs[msgs.length - 1].id : 0).catch(() => {}) }, 4000)
+    let closed = false
+    const connect = () => {
+      const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/chat/${cid}`)
+      ws.current = sock
+      sock.onmessage = ev => {
+        const d = JSON.parse(ev.data)
+        if (d.type === 'typing' && d.who === 'manager') { setMgrTyping(true); setTimeout(() => setMgrTyping(false), 3000) }
+        if (d.type === 'message') {
+          const m: Message = d.message
+          if (m.role === 'manager') setMgrTyping(false)
+          if (m.role === 'system') setMgrMode(/подключился/.test(m.content))
+          setMsgs(cur => cur.some(x => x.id === m.id) ? cur : [...cur.filter(x => !(x.id < 0 && x.role === m.role && x.content === m.content)), m])
+        }
+      }
+      sock.onclose = () => { if (!closed) setTimeout(connect, 3000) }
+    }
+    connect()
+    return () => { closed = true; ws.current?.close() }
+  }, [cid])
+
+  useEffect(() => {
+    if (!cid) return
+    const t = setInterval(() => { if (!busy) load(cid, msgs.length ? Math.max(...msgs.map(x => x.id)) : 0).catch(() => {}) }, 15000)
     return () => clearInterval(t)
   }, [cid, msgs, busy])
 
@@ -93,8 +135,9 @@ export default function Chat() {
     const tmp: Message = { id: -Date.now(), role: 'user', content: value, meta: {} }
     setMsgs(m => [...m, tmp])
     try {
-      const r = await api<Message>(`/api/chat/${cid}/message`, { body: { text: value } })
-      setMsgs(m => [...m, r])
+      const r = await api<Message & { queued?: boolean }>(`/api/chat/${cid}/message`, { body: { text: value } })
+      if (r.queued) { setMgrMode(true); setMsgs(m => m.map(x => x.id === tmp.id ? { ...x, id: r.id } : x)) }
+      else setMsgs(m => m.some(x => x.id === r.id) ? m : [...m, r])
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
@@ -119,7 +162,7 @@ export default function Chat() {
     <div className="chat">
       <div className="chat-head">
         <div className="avatar"><Bot size={22} /></div>
-        <div><b>ИИ-ассистент Softline</b><div className="muted small">Отвечает виртуальный помощник · менеджер — по кнопке</div></div>
+        <div><b>ИИ-ассистент Softline</b><div className="muted small">{mgrMode ? 'Диалог ведёт менеджер Softline' : 'Отвечает виртуальный помощник · менеджер — по кнопке'}</div></div>
         <div className="head-actions">
           <button className="btn sm ghost" onClick={operator} title="Переключиться на живого менеджера"><Headset size={14} /> Позвать оператора</button>
           <button className="link small" onClick={reset}>Новый диалог</button>
@@ -127,6 +170,7 @@ export default function Chat() {
       </div>
       <div className="chat-body" ref={box}>
         {msgs.map(m => (
+          m.role === 'system' ? <div key={m.id} className="sysmsg">{m.content}</div> :
           <div key={m.id} className={`msg ${m.role}`}>
             {m.role === 'manager' && <div className="who"><Headset size={14} /> Менеджер Softline</div>}
             {m.role === 'assistant' && <div className="who"><Bot size={14} /> ИИ-ассистент</div>}
@@ -155,7 +199,8 @@ export default function Chat() {
             )}
           </div>
         ))}
-        {busy && <div className="msg assistant"><div className="bubble typing"><span /><span /><span /> Подбираю по каталогу…</div></div>}
+        {busy && !mgrMode && <div className="msg assistant"><div className="bubble typing"><span /><span /><span /> Подбираю по каталогу…</div></div>}
+        {mgrTyping && <div className="msg manager"><div className="bubble typing"><span /><span /><span /> Менеджер печатает…</div></div>}
         {answered && !busy && (
           <div className="survey">
             {survey.sent ? <div className="ok small">Спасибо! Ваш ответ поможет обучить ассистента.</div> : (<>
@@ -176,7 +221,7 @@ export default function Chat() {
       </div>
       {err && <div className="err pad">{err}</div>}
       <form className="chat-input" onSubmit={e => { e.preventDefault(); send(text) }}>
-        <textarea value={text} rows={1} placeholder="Назовите продукт или опишите задачу…" onChange={e => setText(e.target.value)}
+        <textarea value={text} rows={1} placeholder="Назовите продукт или опишите задачу…" onChange={e => { setText(e.target.value); if (mgrMode && ws.current?.readyState === 1) ws.current.send(JSON.stringify({ type: 'typing' })) }}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(text) } }} />
         <button className="send" disabled={busy || !text.trim()} aria-label="Отправить"><Send size={18} /></button>
       </form>
