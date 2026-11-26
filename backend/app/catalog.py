@@ -209,6 +209,17 @@ def _terms(query: str) -> list[str]:
     return out[:8]
 
 
+RU_VENDORS = ['Касперск', 'Доктор Веб', 'РЕД СОФТ', 'Астра', 'BaseALT', 'Базальт', 'МойОфис', 'Новые облачные технологии', 'Р7',
+              'Positive Technologies', 'Код безопасности', 'КриптоПро', 'Киберпротект', 'InfoWatch', 'Солар', 'SearchInform',
+              'Лаборатория МБК', 'РОСА', 'Конфидент', 'Аладдин', 'Гарда', 'UserGate', 'Индид', 'Content AI', '1С', 'Мобильные ТелеСистемы',
+              'Яндекс', 'VK', 'Postgres Professional', 'Мой Офис', 'Атом', 'Крипто-Про', 'СёрчИнформ', 'Газинформсервис', 'Ideco',
+              'Киберпротект', 'Эшелон', 'ИнфоТеКС', 'Security Code', 'Kaspersky', 'Dr.Web', 'Avanpost', 'Ростелеком']
+
+
+def is_domestic(vendor: str, registry: str, path: str = '') -> bool:
+    return bool(registry) or 'Импортозамещ' in path or any(v.lower() in (vendor or '').lower() for v in RU_VENDORS)
+
+
 def _where(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     f = filters or {}
     sql, args = [], []
@@ -217,7 +228,9 @@ def _where(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     if f.get('only_priced'):
         sql.append('o.price>0')
     if f.get('only_domestic'):
-        sql.append("o.registry<>''")
+        # В фиде номер реестра Минцифры заполнен не у всех российских продуктов: добавляем крупных российских вендоров
+        sql.append("(o.registry<>'' OR o.category_path LIKE '%Импортозамещ%' OR " + ' OR '.join(["o.vendor LIKE ?"] * len(RU_VENDORS)) + ')')
+        args.extend(f'%{v}%' for v in RU_VENDORS)
     for key in ('org_type', 'user_type', 'term', 'license_type'):
         if f.get(key):
             sql.append(f'o.{key} LIKE ?')
@@ -260,7 +273,8 @@ def search(query: str, filters: dict[str, Any] | None = None, limit: int = 8) ->
                     results[g] = {
                         'group_id': g, 'product': r['product'] or r['name'], 'vendor': r['vendor'],
                         'category': ' / '.join(r['category_path'].split(' / ')[-3:-1]),
-                        'url': r['url'], 'domestic': bool(r['registry']), 'registry': r['registry'],
+                        'url': r['url'], 'domestic': is_domestic(r['vendor'], r['registry'], r['category_path']),
+                        'registry': r['registry'] or ('номер записи уточнить у менеджера' if is_domestic(r['vendor'], '', r['category_path']) else ''),
                         'matched_offers': [], 'prices': [],
                     }
                 item = results[g]

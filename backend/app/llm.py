@@ -67,7 +67,9 @@ class GigaChat:
         self._token = ''
         self._exp = 0.0
         self._lock = threading.Lock()
-        ca = Path('/usr/local/share/ca-certificates/russian_trusted_root_ca.crt')
+        import os
+
+        ca = Path(os.environ.get('GIGACHAT_CA_FILE', '/usr/local/share/ca-certificates/russian_trusted_root_ca.crt'))
         verify: Any = self.s.gigachat_verify_ssl
         if verify and ca.exists():
             import ssl

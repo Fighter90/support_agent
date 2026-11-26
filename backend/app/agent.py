@@ -155,25 +155,30 @@ def new_conversation(page_url: str = '') -> str:
     return cid
 
 
-def _history(conv_id: str) -> list[dict[str, Any]]:
+def _history(conv_id: str) -> tuple[list[dict[str, Any]], str]:
+    """История диалога и справка о товарах, найденных ранее (group_id/offer_id нужны модели для следующих шагов)."""
     s = get_settings()
     msgs = db.rows('SELECT role, content, meta FROM messages WHERE conv_id=? ORDER BY id DESC LIMIT ?', (conv_id, s.history_messages))
-    out = []
+    out, ref = [], []
     for m in reversed(msgs):
         meta = db.loads(m['meta'], {})
         if m['role'] == 'user':
             out.append({'role': 'user', 'content': m['content']})
         elif m['role'] in ('assistant', 'manager'):
             text = m['content'] if m['role'] == 'assistant' else f'(Ответ менеджера Softline клиенту) {m["content"]}'
-            ref = []
-            for p in meta.get('products', []):
-                ref.append(f"group_id={p['group_id']} «{p['product']}» от {p.get('price_from_rub')} ₽")
-            for o in meta.get('offers', []):
-                ref.append(f"offer_id={o['offer_id']} «{o['name']}» {o.get('price_rub')} ₽")
-            if ref:
-                text += '\n[Справка для агента, клиенту не видна: ' + '; '.join(ref) + ']'
             out.append({'role': 'assistant', 'content': text})
-    return out
+            for p in meta.get('products', []):
+                ref.append(f"group_id={p['group_id']} «{p['product']}» ({p['vendor']}) от {p.get('price_from_rub')} ₽")
+            for o in meta.get('offers', []):
+                ref.append(f"offer_id={o['offer_id']} «{o['name']}» — {o.get('price_rub')} ₽")
+    note = ''
+    if ref:
+        note = ('Служебная справка (клиенту не показывать): товары, найденные ранее в этом диалоге —\n'
+                + '\n'.join(dict.fromkeys(ref[-20:])))
+    return out, note
+
+
+_LEAK = re.compile(r'\[?(?:Служебная справка|Справка для агента)[^\]\n]*(?:\][^\n]*)?', re.IGNORECASE)
 
 
 def _known_prices(conv_id: str) -> set[float]:
@@ -215,7 +220,8 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
     masked = pii.mask(conv_id, user_text.strip()[:4000])
     db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)', (conv_id, 'user', masked, db.now()))
     ctx: dict[str, Any] = {'prices': _known_prices(conv_id), 'cost_rub': 0.0, 'tokens': 0, 'tools': [], 'provider': ''}
-    messages = [{'role': 'system', 'content': PROMPT}, *_history(conv_id)]
+    history, note = _history(conv_id)
+    messages = [{'role': 'system', 'content': PROMPT + ('\n\n' + note if note else '')}, *history]
     text = ''
     for _ in range(s.max_agent_steps):
         r = _call(conv_id, messages, ctx)
@@ -239,6 +245,7 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
         text = 'Сейчас не получается подобрать ответ автоматически — передаю вопрос менеджеру, он ответит в этом чате.'
         if not ctx.get('escalation'):
             run_tool(conv_id, 'escalate_to_manager', {'reason': 'other', 'summary': f'Агент не смог ответить на: {masked[:500]}'}, ctx)
+    text = _LEAK.sub('', text).strip()
     bad = unverified_prices(text, ctx['prices'])
     if bad:
         logger.info('Неподтверждённые цены %s — переписываю ответ', bad)
