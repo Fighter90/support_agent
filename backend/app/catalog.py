@@ -293,7 +293,8 @@ def search(query: str, filters: dict[str, Any] | None = None, limit: int = 8) ->
                         'group_id': g, 'product': r['product'] or r['name'], 'vendor': r['vendor'],
                         'category': ' / '.join(r['category_path'].split(' / ')[-3:-1]),
                         'url': r['url'], 'domestic': is_domestic(r['vendor'], r['registry'], r['category_path']),
-                        'registry': r['registry'] or ('номер записи уточнить у менеджера' if is_domestic(r['vendor'], '', r['category_path']) else ''),
+                        'registry': (f"запись в реестре отечественного ПО № {r['registry']}" if r['registry'] else
+                                     ('российский вендор; номер записи в реестре в каталоге не указан' if is_domestic(r['vendor'], '', r['category_path']) else '')),
                         'matched_offers': [], 'prices': [],
                     }
                 item = results[g]

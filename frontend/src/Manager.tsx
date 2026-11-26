@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { BarChart3, BookOpen, CheckCircle2, FileText, Headset, LogOut, MessagesSquare, RefreshCw } from 'lucide-react'
+import { BarChart3, BookOpen, CheckCircle2, FileText, Headset, LogOut, MessagesSquare, RefreshCw, ThumbsDown } from 'lucide-react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'escalations' | 'dialogs' | 'quotes' | 'kb' | 'metrics'
+type Tab = 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
@@ -154,6 +154,41 @@ function Quotes() {
   )
 }
 
+function Feedback() {
+  const [d, setD] = useState<any>(null)
+  const [fix, setFix] = useState<Record<number, string>>({})
+  const load = () => api('/api/manager/feedback', { auth: true }).then(setD).catch(() => {})
+  useEffect(() => { load() }, [])
+  if (!d) return <div className="muted pad">Загрузка…</div>
+  const s = d.stats
+  const save = async (id: number) => { await api(`/api/manager/feedback/${id}/fix`, { auth: true, body: { answer: fix[id] } }); load() }
+  return (
+    <div className="pad">
+      <div className="tiles">
+        <div className="tile"><div className="muted small">CSAT (1–5)</div><b>{s.csat ?? '—'}</b></div>
+        <div className="tile"><div className="muted small">Вопрос решён</div><b>{s.resolved_share != null ? Math.round(s.resolved_share * 100) + '%' : '—'}</b></div>
+        <div className="tile"><div className="muted small">Опросов</div><b>{s.surveys}</b></div>
+        <div className="tile"><div className="muted small">👍 / 👎</div><b>{s.thumbs_up} / {s.thumbs_down}</b></div>
+        <div className="tile"><div className="muted small">Примеров для агента</div><b>{s.examples}</b></div>
+      </div>
+      <p className="muted small">👍 — ответ становится примером для агента на похожие вопросы. 👎 — напишите правильный ответ: он попадёт в базу знаний, и агент будет отвечать так.</p>
+      {d.negatives.length === 0 && <div className="muted pad">Отрицательных отзывов нет.</div>}
+      {d.negatives.map((n: any) => (
+        <div key={n.id} className="panel fb">
+          <div className="muted small">{dt(n.created_at)} · {n.status === 'fixed' ? <span className="tag green">исправлено, в базе знаний</span> : <span className="tag red">требует исправления</span>}</div>
+          <div><b>Вопрос:</b> {n.question}</div>
+          <div className="bubble"><Markdown text={n.answer} /></div>
+          {n.status !== 'fixed' && <>
+            <textarea rows={3} placeholder="Правильный ответ — станет статьёй базы знаний" value={fix[n.id] || ''} onChange={e => setFix({ ...fix, [n.id]: e.target.value })} />
+            <button className="btn sm" disabled={!fix[n.id]} onClick={() => save(n.id)}>Исправить и добавить в базу знаний</button>
+          </>}
+        </div>
+      ))}
+      {s.comments.length > 0 && <div className="panel"><b>Комментарии из опросов</b>{s.comments.map((c: any, i: number) => <div key={i} className="kv"><span>{c.comment}</span><span>{c.score}/5 · {c.resolved ? 'решён' : 'не решён'}</span></div>)}</div>}
+    </div>
+  )
+}
+
 function Kb() {
   const [items, setItems] = useState<any[]>([])
   const [f, setF] = useState({ title: '', body: '' })
@@ -182,6 +217,7 @@ function Metrics() {
   const tiles = [
     ['Диалогов', m.conversations], ['Решено без менеджера', `${Math.round(m.automation_rate * 100)}%`], ['Открытых эскалаций', m.escalations_open],
     ['Стоимость 1 запроса', `${m.cost_per_request_rub} ₽`], ['Всего на модели', `${m.cost_total_rub} ₽`], ['Статей от менеджеров', m.kb_from_managers],
+    ['CSAT', m.learning?.csat ?? '—'], ['Вопрос решён (опрос)', m.learning?.resolved_share != null ? `${Math.round(m.learning.resolved_share * 100)}%` : '—'],
   ]
   return (
     <div className="pad">
@@ -203,7 +239,7 @@ export default function Manager() {
   const [tab, setTab] = useState<Tab>('escalations')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП', FileText], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
+  const tabs: [Tab, string, any][] = [['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsDown], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
   return (
     <div className="mgr">
       <aside>
@@ -218,6 +254,7 @@ export default function Manager() {
         {tab === 'escalations' && <Escalations />}
         {tab === 'dialogs' && <Dialogs />}
         {tab === 'quotes' && <Quotes />}
+        {tab === 'feedback' && <Feedback />}
         {tab === 'kb' && <Kb />}
         {tab === 'metrics' && <Metrics />}
       </section>

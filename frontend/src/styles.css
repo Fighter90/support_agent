@@ -123,3 +123,10 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
   .layout { grid-template-columns: 1fr; } .chat { position: static; height: 78vh; } .hero h1 { font-size: 30px; }
   .search { display: none; } .split { grid-template-columns: 1fr; } .mgr { grid-template-columns: 1fr; } .mgr aside { position: static; height: auto; flex-direction: row; flex-wrap: wrap; }
 }
+
+.survey { background: #fff; border: 1px dashed var(--red); border-radius: 12px; padding: 10px 12px; display: grid; gap: 7px; font-size: 13px; }
+.survey input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+.row-q { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row-q button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.row-q button.on { background: var(--red); color: #fff; border-color: var(--red); }
+.fb { display: grid; gap: 8px; margin-bottom: 10px; } .fb textarea { width: 100%; }

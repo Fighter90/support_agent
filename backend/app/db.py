@@ -62,8 +62,18 @@ CREATE TABLE IF NOT EXISTS pii (
   conv_id TEXT, token TEXT, value TEXT, kind TEXT, PRIMARY KEY (conv_id, token)
 );
 CREATE TABLE IF NOT EXISTS feedback (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, message_id INTEGER, rating INTEGER, created_at REAL
+  id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, message_id INTEGER, rating INTEGER, created_at REAL,
+  status TEXT DEFAULT 'new', fixed_kb_id INTEGER       -- 👎: new → fixed (менеджер исправил ответ и добавил в базу знаний)
 );
+CREATE TABLE IF NOT EXISTS surveys (               -- опрос в конце диалога: решён ли вопрос, оценка 1–5, комментарий
+  id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT UNIQUE, resolved INTEGER, score INTEGER, comment TEXT, created_at REAL
+);
+CREATE TABLE IF NOT EXISTS examples (              -- ответы, отмеченные клиентами полезными: примеры для агента
+  id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT, answer TEXT, message_id INTEGER UNIQUE, created_at REAL
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS examples_fts USING fts5(question, content='examples', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
+CREATE TRIGGER IF NOT EXISTS ex_ai AFTER INSERT ON examples BEGIN
+  INSERT INTO examples_fts(rowid, question) VALUES (new.id, new.question); END;
 """
 
 
@@ -88,9 +98,23 @@ def conn() -> Iterator[sqlite3.Connection]:
         con.close()
 
 
+MIGRATIONS = [  # новые колонки для баз, созданных предыдущими версиями
+    "ALTER TABLE feedback ADD COLUMN status TEXT DEFAULT 'new'",
+    'ALTER TABLE feedback ADD COLUMN fixed_kb_id INTEGER',
+    "ALTER TABLE quotes ADD COLUMN kind TEXT DEFAULT 'quote'",
+    'ALTER TABLE quotes ADD COLUMN discount REAL DEFAULT 0',
+    "ALTER TABLE llm_calls ADD COLUMN step TEXT DEFAULT ''",
+]
+
+
 def init_db() -> None:
     with conn() as c:
         c.executescript(SCHEMA)
+        for sql in MIGRATIONS:
+            try:
+                c.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # колонка уже есть
 
 
 def now() -> float:

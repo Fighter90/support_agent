@@ -76,6 +76,23 @@ def test_quote_prices_from_catalog():
         quotes.create(cid, [{'offer_id': 999, 'quantity': 1}])  # позиция без цены — только через менеджера
 
 
+def test_learning_from_feedback():
+    from app import learning
+    cid = agent.new_conversation()
+    r = agent.reply(cid, 'Нужен MDaemon')
+    learning.rate(cid, r['id'], 1)
+    ex = learning.examples_for('Хочу купить MDaemon')
+    assert ex and '₽' not in ex[0]['answer']  # цены в примерах вырезаны
+    learning.rate(cid, r['id'], -1)
+    neg = learning.negatives()
+    assert neg and neg[0]['question'] == 'Нужен MDaemon'
+    kb_id = learning.fix(neg[0]['id'], 'MDaemon продаётся в редакциях по числу пользователей, срок 2 или 3 года.', 'Тест')
+    assert kb_id and kb.search('MDaemon редакции')
+    learning.survey(cid, True, 5, 'Отлично')
+    st = learning.stats()
+    assert st['csat'] == 5 and st['resolved_share'] == 1
+
+
 def test_discount_limit_and_invoice():
     from app import quotes
     cid = agent.new_conversation()

@@ -95,11 +95,29 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
                             'price_from_rub': r['price_from_rub'], 'domestic': r['domestic'], 'registry': r['registry']} for r in res[:4]]
         return {'results': res, 'hint': '' if res else 'Ничего не найдено: переформулируй запрос (синонимы, вендор, класс ПО) или передай менеджеру.'}
     if name == 'get_product_variants':
+        gid = int(args.get('group_id') or 0)
         f = {k: args.get(k) for k in ('users', 'term', 'org_type', 'license_type') if args.get(k)}
-        res = catalog.variants(group_id=int(args.get('group_id') or 0), filters=f, text=str(args.get('text') or ''), limit=15)
-        if not res.get('variants') and f:
-            res = catalog.variants(group_id=int(args.get('group_id') or 0), limit=15)
-            res['note'] = 'По заданным фильтрам вариантов нет — показаны все версии линейки.'
+        text = str(args.get('text') or '')
+        res = catalog.variants(group_id=gid, filters=f, text=text, limit=15)
+        # Ослабляем фильтры по одному (срок → текст → тип лицензии → тип организации), число пользователей держим до конца
+        dropped = []
+        for key in ('term', 'text', 'license_type', 'org_type', 'users'):
+            if res.get('variants'):
+                break
+            if key == 'text':
+                if not text:
+                    continue
+                text = ''
+            elif key in f:
+                f.pop(key)
+            else:
+                continue
+            dropped.append(key)
+            res = catalog.variants(group_id=gid, filters=f, text=text, limit=15)
+        if dropped:
+            ru = {'term': 'срок', 'text': 'слово в названии', 'license_type': 'тип лицензии', 'org_type': 'тип организации', 'users': 'число пользователей'}
+            res['note'] = ('Точного совпадения нет; без фильтра «' + '», «'.join(ru[d] for d in dropped) +
+                           '» найдены варианты ниже — предложи ближайшие и скажи клиенту, чем они отличаются от запроса.')
         ctx['prices'].update(v['price_rub'] for v in res.get('variants', []) if v.get('price_rub'))
         ctx['offers'] = [{'offer_id': v['offer_id'], 'name': v['name'], 'price_rub': v.get('price_rub'), 'url': v.get('url')}
                          for v in res.get('variants', [])[:6]]
@@ -228,6 +246,12 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
     db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)', (conv_id, 'user', masked, db.now()))
     ctx: dict[str, Any] = {'prices': _known_prices(conv_id), 'cost_rub': 0.0, 'tokens': 0, 'tools': [], 'provider': ''}
     history, note = _history(conv_id)
+    from app import learning
+
+    ex = learning.examples_for(masked)
+    if ex:  # примеры ответов, которые клиенты отметили полезными (цены в них вырезаны — бери из инструментов)
+        note += '\n\nПримеры ответов на похожие вопросы, которые клиенты отметили полезными (стиль и маршрут, не факты):\n' + \
+                '\n'.join(f'— Вопрос: {e["question"][:300]}\n  Ответ: {e["answer"][:600]}' for e in ex)
     messages = [{'role': 'system', 'content': PROMPT + ('\n\n' + note if note else '')}, *history]
     text = ''
     for _ in range(s.max_agent_steps):
@@ -269,6 +293,10 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
         for b in unverified_prices(text, ctx['prices']):
             text = text.replace(b, 'цену уточнит менеджер')
         ctx['price_guard'] = bad
+    # Карточки — только тех продуктов, о которых говорится в ответе (иначе карточки противоречат тексту)
+    if ctx.get('products'):
+        low = text.lower()
+        ctx['products'] = [p for p in ctx['products'] if _mentioned(p['product'], low)]
     meta = {k: ctx[k] for k in ('products', 'offers', 'quote', 'escalation', 'kb', 'price_guard', 'degraded') if ctx.get(k)}
     meta.update({'prices': sorted(ctx['prices'])[:200], 'tools': ctx['tools'], 'provider': ctx['provider'],
                  'cost_rub': round(ctx['cost_rub'], 4), 'tokens': ctx['tokens'], 'ms': int((time.time() - t0) * 1000)})
@@ -283,6 +311,14 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
         upd += ", scenario=CASE WHEN scenario='' THEN 'question' ELSE scenario END"
     db.execute(upd + ' WHERE id=?', (*args, conv_id))
     return {'id': mid, 'role': 'assistant', 'content': pii.unmask(conv_id, text), 'meta': public_meta(meta)}
+
+
+def _mentioned(product: str, low_text: str) -> bool:
+    name = product.lower().replace('«', '').replace('»', '')
+    if name in low_text.replace('«', '').replace('»', ''):
+        return True
+    words = [w for w in re.findall(r'[\wа-яё]+', name) if len(w) > 2][:3]
+    return bool(words) and all(w in low_text for w in words)
 
 
 def public_meta(meta: dict[str, Any]) -> dict[str, Any]:

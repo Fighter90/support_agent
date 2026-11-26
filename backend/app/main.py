@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import agent, auth, catalog, db, kb, llm, pii, quotes
+from app import agent, auth, catalog, db, kb, learning, llm, pii, quotes
 from app.config import ROOT_DIR, get_settings
 
 logger = logging.getLogger('support_agent')
@@ -98,6 +98,16 @@ class FeedbackIn(BaseModel):
     rating: int = Field(ge=-1, le=1)
 
 
+class SurveyIn(BaseModel):
+    resolved: bool
+    score: int = Field(ge=1, le=5)
+    comment: str = Field(default='', max_length=1000)
+
+
+class FixIn(BaseModel):
+    answer: str = Field(min_length=3, max_length=6000)
+
+
 @app.get('/api/health')
 def health() -> dict[str, Any]:
     return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()]}
@@ -149,7 +159,15 @@ def call_operator(cid: str) -> dict[str, Any]:
 @app.post('/api/chat/{cid}/feedback')
 def feedback(cid: str, body: FeedbackIn) -> dict[str, str]:
     _conv(cid)
-    db.execute('INSERT INTO feedback (conv_id, message_id, rating, created_at) VALUES (?,?,?,?)', (cid, body.message_id, body.rating, db.now()))
+    learning.rate(cid, body.message_id, body.rating)
+    return {'status': 'ok'}
+
+
+@app.post('/api/chat/{cid}/survey')
+def chat_survey(cid: str, body: SurveyIn) -> dict[str, str]:
+    """Опрос в конце диалога: «Ответьте, пожалуйста, — это помогает обучать ассистента»."""
+    _conv(cid)
+    learning.survey(cid, body.resolved, body.score, pii.mask(cid, body.comment))
     return {'status': 'ok'}
 
 
@@ -163,7 +181,8 @@ async def requisites(qid: str, body: RequisitesIn) -> dict[str, Any]:
     except quotes.QuoteError as e:
         raise HTTPException(400, str(e)) from e
     doc = 'Счёт на оплату' if q.get('kind') == 'invoice' else 'Коммерческое предложение'
-    text = (f'{doc} {q["number"]} на сумму {q["total"]:,.2f} ₽ сформирован. '.replace(',', ' ') +
+    total = f'{q["total"]:,.2f}'.replace(',', ' ').replace('.', ',')
+    text = (f'{doc} {q["number"]} на сумму {total} ₽ сформирован. ' +
             'PDF можно скачать по кнопке ниже; менеджер проверит документ и при необходимости свяжется с вами.')
     meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'kind': q.get('kind'),
                       'pdf': f'/api/quotes/{qid}/pdf'}}
@@ -279,6 +298,22 @@ def manager_pdf(qid: str, m: dict = Depends(auth.manager)) -> FileResponse:
     return quote_pdf(qid)
 
 
+@app.get('/api/manager/feedback')
+def feedback_list(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    items = learning.negatives()
+    for r in items:
+        r['question'] = pii.unmask(r['conv_id'], r['question'])
+    return {'negatives': items, 'stats': learning.stats()}
+
+
+@app.post('/api/manager/feedback/{fid}/fix')
+def feedback_fix(fid: int, body: FixIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    try:
+        return {'kb_id': learning.fix(fid, body.answer, m['name'])}
+    except KeyError:
+        raise HTTPException(404, 'Отзыв не найден') from None
+
+
 @app.get('/api/manager/kb')
 def kb_list(m: dict = Depends(auth.manager)) -> list[dict[str, Any]]:
     return kb.articles()
@@ -310,6 +345,7 @@ def metrics(m: dict = Depends(auth.manager)) -> dict[str, Any]:
         'cost_total_rub': round(cost, 4),
         'cost_per_request_rub': round(cost / user_msgs, 4) if user_msgs else 0,
         'feedback': db.rows('SELECT rating, count(*) AS n FROM feedback GROUP BY rating'),
+        'learning': learning.stats(),
         'tools': db.rows('SELECT tool, count(*) AS n, round(avg(ms)) AS avg_ms FROM tool_calls GROUP BY tool ORDER BY n DESC'),
         'catalog': catalog.stats(),
     }

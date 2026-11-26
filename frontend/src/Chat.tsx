@@ -11,10 +11,13 @@ const PROMPTS = [
   'Цены указаны с НДС?',
 ]
 
-function QuoteCard({ q, onDone }: { q: Quote; onDone: () => void }) {
+function QuoteCard({ q, onDone, filled }: { q: Quote; onDone: () => void; filled: boolean }) {
   const [f, setF] = useState({ company: '', inn: '', kpp: '', email: '' })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  if (q.status === 'awaiting_requisites' && filled) {
+    return <div className="quote muted"><ShieldCheck size={16} /> Реквизиты получены — документ {q.number} сформирован ниже</div>
+  }
   if (q.status !== 'awaiting_requisites') {
     return (
       <div className="quote">
@@ -53,6 +56,9 @@ export default function Chat() {
   const [err, setErr] = useState('')
   const [rated, setRated] = useState<Record<number, number>>({})
   const box = useRef<HTMLDivElement>(null)
+  const [survey, setSurvey] = useState<{ resolved?: boolean; score?: number; comment: string; sent: boolean }>({ comment: '', sent: false })
+  const filledQuotes = new Set(msgs.filter(x => x.meta?.quote && x.meta.quote.status !== 'awaiting_requisites').map(x => x.meta.quote!.quote_id))
+  const answered = msgs.filter(x => x.role !== 'user').length >= 3
 
   const load = async (id: string, after = 0) => {
     const d = await api<{ messages: Message[] }>(`/api/chat/${id}?after=${after}`)
@@ -102,7 +108,12 @@ export default function Chat() {
     try { const r = await api<{ message?: Message }>(`/api/chat/${cid}/operator`, { method: 'POST' }); if (r.message) setMsgs(m => [...m, r.message!]) } catch (e) { setErr((e as Error).message) }
   }
 
-  const reset = () => { try { localStorage.removeItem(CONV_KEY) } catch { /* ignore */ } setMsgs([]); start() }
+  const sendSurvey = async () => {
+    if (survey.resolved === undefined || !survey.score) return
+    try { await api(`/api/chat/${cid}/survey`, { body: { resolved: survey.resolved, score: survey.score, comment: survey.comment } }); setSurvey(v => ({ ...v, sent: true })) } catch (e) { setErr((e as Error).message) }
+  }
+
+  const reset = () => { try { localStorage.removeItem(CONV_KEY) } catch { /* ignore */ } setMsgs([]); setSurvey({ comment: '', sent: false }); start() }
 
   return (
     <div className="chat">
@@ -128,12 +139,12 @@ export default function Chat() {
                     <a key={p.group_id} className="card" href={p.url} target="_blank" rel="noreferrer">
                       <div className="card-title">{p.product}</div>
                       <div className="muted small">{p.vendor}</div>
-                      <div className="card-foot"><span>от {rub(p.price_from_rub)}</span>{p.domestic && <span className="tag"><BadgeCheck size={12} /> Реестр ПО</span>}</div>
+                      <div className="card-foot"><span>от {rub(p.price_from_rub)}</span>{p.domestic && <span className="tag"><BadgeCheck size={12} /> {/№\s*\d/.test(p.registry || '') ? 'Реестр ПО' : 'Российский вендор'}</span>}</div>
                     </a>
                   ))}
                 </div>
               )}
-              {m.meta?.quote && <QuoteCard q={m.meta.quote} onDone={() => load(cid, m.id)} />}
+              {m.meta?.quote && <QuoteCard q={m.meta.quote} filled={filledQuotes.has(m.meta.quote.quote_id)} onDone={() => load(cid, m.id)} />}
               {m.meta?.escalation && <div className="esc"><Headset size={14} /> Передано менеджеру: {m.meta.escalation.reason}</div>}
             </div>
             {m.role === 'assistant' && m.id > 0 && msgs[0]?.id !== m.id && (
@@ -145,6 +156,20 @@ export default function Chat() {
           </div>
         ))}
         {busy && <div className="msg assistant"><div className="bubble typing"><span /><span /><span /> Подбираю по каталогу…</div></div>}
+        {answered && !busy && (
+          <div className="survey">
+            {survey.sent ? <div className="ok small">Спасибо! Ваш ответ поможет обучить ассистента.</div> : (<>
+              <b>Ответьте, пожалуйста, — это помогает обучать ассистента</b>
+              <div className="row-q">Вопрос решён?
+                <button className={survey.resolved === true ? 'on' : ''} onClick={() => setSurvey(v => ({ ...v, resolved: true }))}>Да</button>
+                <button className={survey.resolved === false ? 'on' : ''} onClick={() => setSurvey(v => ({ ...v, resolved: false }))}>Нет</button>
+              </div>
+              <div className="row-q">Оценка: {[1, 2, 3, 4, 5].map(n => <button key={n} className={survey.score === n ? 'on' : ''} onClick={() => setSurvey(v => ({ ...v, score: n }))}>{n}</button>)}</div>
+              <input placeholder="Что улучшить? (необязательно)" value={survey.comment} onChange={e => setSurvey(v => ({ ...v, comment: e.target.value }))} />
+              <button className="btn sm" disabled={survey.resolved === undefined || !survey.score} onClick={sendSurvey}>Отправить оценку</button>
+            </>)}
+          </div>
+        )}
         {msgs.length <= 1 && !busy && (
           <div className="prompts">{PROMPTS.map(p => <button key={p} onClick={() => send(p)}>{p}</button>)}</div>
         )}
