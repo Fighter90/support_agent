@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="2026-11-25 14:12"><shop><name>store.softline.ru</name>
+<categories>
+<category id="10">Сеть и интернет</category><category id="11" parentId="10">Почтовые клиенты</category>
+<category id="394683" parentId="11">MDaemon</category>
+<category id="20">Операционные системы</category><category id="21" parentId="20">Российские операционные системы (Импортозамещение)</category>
+<category id="165644" parentId="21">Операционная система РЕД ОС</category>
+</categories>
+<offers>
+<offer id="477682" group_id="394683" available="true"><name>MDaemon Technologies, Ltd. MDaemon (продление на 2 года), 5 пользователей</name><vendor>MDaemon Technologies, Ltd.</vendor><url>https://store.softline.ru/x/-477682/</url><price>47808.00</price><categoryId>11</categoryId><description>Срок действия: 24 мес.</description><group_id>394683</group_id><param name="К-во пользователей до">5</param><param name="Срок действия">24 мес.</param><param name="Тип лицензии">Продление</param><param name="Тип организации">Коммерческая</param><param name="Номер записи в реестре отечественного ПО">другое или отсутствует</param></offer>
+<offer id="477681" group_id="394683" available="true"><name>MDaemon Technologies, Ltd. MDaemon (продление на 2 года), 6 пользователей</name><vendor>MDaemon Technologies, Ltd.</vendor><url>https://store.softline.ru/x/-477681/</url><price>50585.00</price><categoryId>11</categoryId><description>Срок действия: 24 мес.</description><group_id>394683</group_id><param name="К-во пользователей до">6</param><param name="Срок действия">24 мес.</param><param name="Тип лицензии">Продление</param></offer>
+<offer id="999" group_id="394683" available="false"><name>MDaemon Technologies, Ltd. MDaemon, 1000 пользователей</name><vendor>MDaemon Technologies, Ltd.</vendor><url>https://store.softline.ru/x/-999/</url><price>0.00</price><categoryId>11</categoryId><group_id>394683</group_id><param name="К-во пользователей до">1000</param></offer>
+<offer id="300001" group_id="165644" available="true"><name>РЕД СОФТ РЕД ОС, рабочая станция, бессрочно</name><vendor>РЕД СОФТ</vendor><url>https://store.softline.ru/x/-300001/</url><price>305.00</price><categoryId>21</categoryId><description>Операционная система</description><group_id>165644</group_id><param name="Номер записи в реестре отечественного ПО">3751</param></offer>
+</offers></shop></yml_catalog>
