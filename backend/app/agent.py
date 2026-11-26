@@ -202,8 +202,9 @@ def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any]) -> 
         ctx['cost_rub'] += cost
         ctx['tokens'] += r.tokens_in + r.tokens_out
         ctx['provider'] = p.name
-        db.execute('INSERT INTO llm_calls (conv_id, provider, model, tokens_in, tokens_out, cost_rub, ms, ok, created_at) '
-                   'VALUES (?,?,?,?,?,?,?,?,?)', (conv_id, p.name, r.model, r.tokens_in, r.tokens_out, cost, r.ms, 1, db.now()))
+        step = 'price_fix' if ctx.get('guard') else ('tool_choice' if r.tool_calls else 'answer')
+        db.execute('INSERT INTO llm_calls (conv_id, provider, model, tokens_in, tokens_out, cost_rub, ms, ok, created_at, step) '
+                   'VALUES (?,?,?,?,?,?,?,?,?,?)', (conv_id, p.name, r.model, r.tokens_in, r.tokens_out, cost, r.ms, 1, db.now(), step))
         return r
     raise llm.LLMError(last_err or 'Нет доступных моделей')
 
@@ -244,6 +245,7 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
         messages.append({'role': 'assistant', 'content': text})
         messages.append({'role': 'user', 'content': f'(Системная проверка) Цены {", ".join(bad)} не подтверждены инструментами. '
                                                      'Перепиши ответ, используя только цены из результатов инструментов.'})
+        ctx['guard'] = True
         try:
             r = _call(conv_id, messages, ctx)
             if r.text and not r.tool_calls:

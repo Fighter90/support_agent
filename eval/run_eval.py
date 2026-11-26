@@ -94,7 +94,14 @@ def main() -> None:
         print(f'[{i}/{len(cases)}] {"OK " if ok else "BAD"} {c["category"][:28]:28} {"→".join(tools) or "-":50} {ms} мс', flush=True)
     must_esc = [r for r in results if EXPECT.get(r['category']) == {'escalate_to_manager'}]
     n = len(results)
+    # Токены по шагам агента — исходные данные для расчёта стоимости одного запроса (docs/cost.xlsx)
+    steps = db.rows("SELECT step, provider, count(*) AS calls, avg(tokens_in) AS tin, avg(tokens_out) AS tout FROM llm_calls "
+                    "WHERE ok=1 AND step<>'' GROUP BY step, provider")
+    for st in steps:
+        st['calls_per_request'] = round(st['calls'] / n, 3)
+        st['tin'], st['tout'] = round(st['tin']), round(st['tout'])
     rep = {
+        'steps': steps,
         'cases': n,
         'routing_accuracy': round(sum(r['ok'] for r in results) / n, 3),
         'escalation_recall': round(sum(r['escalated'] for r in must_esc) / len(must_esc), 3) if must_esc else None,

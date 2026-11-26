@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 );
 CREATE TABLE IF NOT EXISTS llm_calls (
   id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT, provider TEXT, model TEXT,
-  tokens_in INTEGER, tokens_out INTEGER, cost_rub REAL, ms INTEGER, ok INTEGER, error TEXT DEFAULT '', created_at REAL
+  tokens_in INTEGER, tokens_out INTEGER, cost_rub REAL, ms INTEGER, ok INTEGER, error TEXT DEFAULT '', created_at REAL,
+  step TEXT DEFAULT ''                   -- tool_choice | answer | price_fix
 );
 CREATE TABLE IF NOT EXISTS pii (
   conv_id TEXT, token TEXT, value TEXT, kind TEXT, PRIMARY KEY (conv_id, token)
