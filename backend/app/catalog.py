@@ -206,9 +206,21 @@ _STOP = {'для', 'на', 'и', 'в', 'с', 'по', 'нужен', 'нужна',
          'здравствуйте', 'добрый', 'день', 'нас', 'мы', 'я', 'так', 'же', 'бы', 'ещё', 'еще', 'надо'}
 
 
+# Как клиенты пишут названия по-русски → как они записаны в фиде
+TRANSLIT = {'линукс': 'linux', 'линкус': 'linux', 'астра': 'astra', 'касперский': 'kaspersky', 'касперского': 'kaspersky',
+            'майкрософт': 'microsoft', 'офис': 'office', 'ворд': 'word', 'эксель': 'excel', 'виндовс': 'windows',
+            'виндоус': 'windows', 'адоб': 'adobe', 'фотошоп': 'photoshop', 'автокад': 'autocad', 'мдемон': 'mdaemon',
+            'эмдемон': 'mdaemon', 'доктор': 'dr.web', 'драйвер': 'driver', 'зум': 'zoom', 'виндовз': 'windows',
+            'ред': 'ред', 'альт': 'альт', 'вмваре': 'vmware', 'оракл': 'oracle', 'аутлук': 'outlook', 'тимс': 'teams'}
+
+
 def _terms(query: str) -> list[str]:
     out = []
-    for w in _WORD.findall(query.lower()):
+    low = query.lower()
+    for ru, en in TRANSLIT.items():
+        if ru != en:
+            low = re.sub(rf'(?<![\w]){ru}\w*', en, low)
+    for w in _WORD.findall(low):
         w = w.strip('.-')
         if len(w) < 2 or w in _STOP:
             continue
