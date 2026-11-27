@@ -105,7 +105,7 @@ await step('Поиск по каталогу на витрине', cl, async () 
   const txt = await cl.locator('.suggest').innerText()
   must(/Kaspersky/i.test(txt), 'в подсказках нет Kaspersky')
   const [card] = await Promise.all([ctx.waitForEvent('page'), cl.locator('.suggest a.sg').first().click()])
-  const url = card.url(); await card.close()
+  await card.waitForURL(/store\.softline\.ru/, { timeout: 15000 }).catch(() => {}); const url = card.url(); await card.close()
   must(/store\.softline\.ru/.test(url), 'подсказка не открыла карточку товара')
   await s.fill('')
   return `${k - 1} подсказок, клик открывает ${url.slice(0, 45)}…`
@@ -260,7 +260,8 @@ await step('Telegram: раздел подключения бота', mg, async (
 })
 await step('Telegram: бот включён, кнопка подключения выдаёт ссылку, чат менеджера подключён', mg, async () => {
   const [tg] = await Promise.all([ctx.waitForEvent('page', { timeout: 15000 }), mg.getByRole('button', { name: /Подключить Telegram/ }).click()])
-  const u = tg.url(); await tg.close(); must(/t\.me\/SoftlineSupportBot\?start=/.test(u), 'нет ссылки на бота: ' + u)
+  await tg.waitForURL(/t\.me/, { timeout: 15000 }).catch(() => {}); const u = tg.url(); await tg.close()
+  must(/t\.me\/SoftlineSupportBot\?start=\w+/.test(u), 'нет ссылки на бота: ' + u)
   const txt = await mg.locator('.mgr-main').innerText()
   must(/Подключить Telegram/.test(txt), 'бот не настроен'); must(/Отключить/.test(txt), 'нет подключённых чатов')
   return 'бот включён, подключённых чатов: ' + (await mg.getByRole('button', { name: 'Отключить' }).count())

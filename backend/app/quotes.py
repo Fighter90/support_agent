@@ -40,9 +40,9 @@ def _tier(o: dict[str, Any]) -> tuple[int, int]:
 def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 0, kind: str = 'quote') -> dict[str, Any]:
     discount = float(discount_percent or 0)
     cap = discounts.agent_cap()  # заказчик: агент сам даёт до 5% (лимит меняет менеджер в кабинете)
-    if discount < 0 or discount > cap:
-        raise QuoteError(f'Скидку больше {cap:g}% агент не согласует — передай запрос менеджеру (reason=special_terms)')
     promos = discounts.rules(active_only=True)
+    if discount < 0:
+        raise QuoteError('Скидка не может быть отрицательной')
     kind = 'invoice' if kind == 'invoice' else 'quote'
     ids = [int(i.get('offer_id', 0)) for i in items if i.get('offer_id')]
     offers = catalog.get_offers(ids)
@@ -64,12 +64,18 @@ def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 
                             'Если число клиента вне диапазона — возьми вариант с подходящим диапазоном.')
             continue
         promo = discounts.best_for(o, promos)
-        d = max(discount, promo['percent'] if promo else 0)
+        pp = promo['percent'] if promo else 0
+        if discount > max(cap, pp):  # больше лимита агента и больше акции — только менеджер
+            raise QuoteError(f'Скидку {discount:g}% агент не согласует (лимит {cap:g}%'
+                             + (f', акция {pp:g}%' if pp else '') + ') — передай запрос менеджеру (reason=special_terms)')
+        d = max(discount if discount <= cap else 0, pp)
         price = round(o['price'] * (1 - d / 100), 2)
         total = round(price * qty, 2)
         lines.append({'offer_id': oid, 'article': str(oid), 'name': o['name'], 'quantity': qty, 'list_price': o['price'], 'price': price,
                       'total': total, 'vat': _vat(total, bool(o['registry'])), 'domestic': bool(o['registry']), 'url': o['url'],
-                      'discount': d, 'promo': promo['title'] if promo and promo['percent'] >= d else ''})
+                      'discount': d, 'promo': promo['title'] if promo and promo['percent'] >= d else '',
+                      # цена есть, но в фиде available=false: продаём (правило заказчика), менеджеру — отметка проверить поставку
+                      'check_supply': not o.get('available')})
     if not lines:
         raise QuoteError('; '.join(problems) or 'нет позиций для КП')
     qid = db.new_id('q')

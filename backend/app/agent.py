@@ -67,7 +67,7 @@ TOOLS: list[dict[str, Any]] = [
                 'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer', 'description': 'Число лицензий: для цен «за узел/пользователя» — число узлов или пользователей клиента'}},
                 'required': ['offer_id', 'quantity']}},
             'document': {'type': 'string', 'enum': ['quote', 'invoice'], 'description': 'КП (по умолчанию) или счёт на оплату'},
-            'discount_percent': {'type': 'number', 'description': 'Скидка агента в пределах лимита (обычно до 5%); больше — только через менеджера'},
+            'discount_percent': {'type': 'number', 'description': 'Только твоя скидка в пределах лимита (обычно до 5%). Акцию (promo) сюда НЕ передавай — она подставится сама; больше лимита — только через менеджера'},
         }, 'required': ['items']}}},
     {'type': 'function', 'function': {
         'name': 'get_product_card',
