@@ -164,6 +164,19 @@ def notify_new() -> int:
         sent += 1
     mx = (db.one('SELECT max(id) AS v FROM messages') or {}).get('v') or last_m
     _set('msg', max(mx, last_m))
+    # Регламент ответа: эскалация без ответа дольше цели (по умолчанию 2 мин) — одно напоминание
+    from app import discounts
+    target = discounts.sla_seconds()
+    if _state('remind_from', -1) < 0:  # старые эскалации (до включения напоминаний) не трогаем
+        _set('remind_from', (db.one('SELECT max(id) AS v FROM escalations') or {}).get('v') or 0)
+    for e in db.rows("SELECT id, conv_id, category FROM escalations WHERE status='open' AND id>? AND created_at < ?",
+                     (_state('remind_from', 0), db.now() - target)):
+        if _state(f'remind:{e["id"]}', 0):
+            continue
+        _set(f'remind:{e["id"]}', 1)
+        _broadcast(f'⏰ Эскалация #{e["id"]} ({e["category"]}) ждёт ответа дольше регламента — {target / 60:g} мин. '
+                   'Ответьте реплаем или возьмите диалог.', e['conv_id'], _buttons(e['conv_id']))
+        sent += 1
     return sent
 
 

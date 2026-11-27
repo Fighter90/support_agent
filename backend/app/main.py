@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import agent, auth, catalog, db, handoff, hub, kb, learning, llm, payments, pii, quotes, telegram
+from app import agent, auth, catalog, db, discounts, handoff, hub, kb, learning, llm, payments, pii, quotes, telegram
 from app.config import ROOT_DIR, get_settings
 
 logger = logging.getLogger('support_agent')
@@ -47,6 +47,7 @@ async def lifespan(_: FastAPI):
 
     threading.Thread(target=refresh_loop, daemon=True, name='feed-refresh').start()
     payments.init()
+    discounts.init()
     telegram.init()
     telegram.start()
     import asyncio
@@ -260,7 +261,7 @@ async def requisites(qid: str, body: RequisitesIn) -> dict[str, Any]:
     doc = 'Счёт на оплату' if q.get('kind') == 'invoice' else 'Коммерческое предложение'
     total = f'{q["total"]:,.2f}'.replace(',', ' ').replace('.', ',')
     text = (f'{doc} {q["number"]} на сумму {total} ₽ сформирован. ' +
-            'PDF можно скачать по кнопке ниже; менеджер проверит документ и при необходимости свяжется с вами.')
+            'PDF можно скачать по кнопке ниже — документ готов к оплате.')
     meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'kind': q.get('kind'),
                       'pdf': f'/api/quotes/{qid}/pdf'}}
     db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (q['conv_id'], 'assistant', text, db.dumps(meta), db.now()))
@@ -467,9 +468,17 @@ def metrics(m: dict = Depends(auth.manager)) -> dict[str, Any]:
     escal = one('SELECT count(DISTINCT conv_id) v FROM escalations')
     user_msgs = one("SELECT count(*) v FROM messages WHERE role='user'")
     cost = one('SELECT sum(cost_rub) v FROM llm_calls')
+    # «Закрыто агентом» (ответ организаторов): ответ без менеджера ИЛИ документ, который менеджер лишь подтвердил одной кнопкой
+    closed = one("SELECT count(*) v FROM conversations WHERE id IN (SELECT conv_id FROM messages WHERE role='user') "
+                 "AND id NOT IN (SELECT conv_id FROM escalations) AND id NOT IN (SELECT conv_id FROM messages WHERE role='manager' "
+                 "AND meta NOT LIKE '%\"status\": \"approved\"%')")
+    closed_approved = one("SELECT count(DISTINCT conv_id) v FROM messages WHERE role='manager' AND meta LIKE '%\"status\": \"approved\"%' "
+                          "AND conv_id NOT IN (SELECT conv_id FROM escalations)")
     return {
         'conversations': convs, 'user_messages': user_msgs,
-        'resolved_without_human': convs - escal, 'automation_rate': round((convs - escal) / convs, 3) if convs else 0,
+        'resolved_without_human': closed, 'closed_with_quote_approval': closed_approved,
+        'automation_rate': round(closed / convs, 3) if convs else 0,
+        'sla': sla_stats(),
         'escalations_open': one("SELECT count(*) v FROM escalations WHERE status='open'"),
         'escalations_by_reason': db.rows('SELECT category, count(*) AS n FROM escalations GROUP BY category ORDER BY n DESC'),
         'scenarios': db.rows("SELECT CASE scenario WHEN '' THEN 'other' ELSE scenario END AS scenario, count(*) AS n FROM conversations "
@@ -485,6 +494,96 @@ def metrics(m: dict = Depends(auth.manager)) -> dict[str, Any]:
         'tools': db.rows('SELECT tool, count(*) AS n, round(avg(ms)) AS avg_ms FROM tool_calls GROUP BY tool ORDER BY n DESC'),
         'catalog': catalog.stats(),
     }
+
+
+def _median(xs: list[float]) -> float | None:
+    xs = sorted(xs)
+    return round(xs[len(xs) // 2], 1) if xs else None
+
+
+def sla_stats() -> dict[str, Any]:
+    """Регламент ответа: первый ответ клиенту (агент) и первый ответ менеджера на эскалацию против цели (сейчас ~2 мин)."""
+    target = discounts.sla_seconds()
+    first = []
+    for c in db.rows("SELECT conv_id, min(created_at) AS t FROM messages WHERE role='user' GROUP BY conv_id"):
+        a = db.one("SELECT min(created_at) AS t FROM messages WHERE conv_id=? AND role IN ('assistant','manager') AND created_at>=?", (c['conv_id'], c['t']))
+        if a and a['t']:
+            first.append(a['t'] - c['t'])
+    mgr, overdue = [], 0
+    for e in db.rows('SELECT id, conv_id, created_at, status, answered_at FROM escalations'):
+        a = db.one("SELECT min(created_at) AS t FROM messages WHERE conv_id=? AND role='manager' AND created_at>=?", (e['conv_id'], e['created_at']))
+        t = min([x for x in ((a or {}).get('t'), e.get('answered_at')) if x] or [0])
+        if t:
+            mgr.append(t - e['created_at'])
+        elif e['status'] == 'open' and db.now() - e['created_at'] > target:
+            overdue += 1
+    return {'target_sec': target, 'agent_first_response_median_sec': _median(first),
+            'agent_first_response_p90_sec': round(sorted(first)[int(len(first) * 0.9) - 1], 1) if len(first) >= 2 else _median(first),
+            'manager_first_response_median_sec': _median(mgr),
+            'manager_within_sla_share': round(sum(x <= target for x in mgr) / len(mgr), 3) if mgr else None,
+            'escalations_overdue': overdue, 'baseline_sec': 120}
+
+
+# ------------------------------------------------------------------ скидки (таблица менеджера) и регламент
+
+class DiscountIn(BaseModel):
+    id: int | None = None
+    title: str = ''
+    scope: str = 'product'
+    match: str = ''
+    percent: float
+    active: bool = True
+    valid_until: float | None = None
+    note: str = ''
+
+
+class SettingsIn(BaseModel):
+    agent_discount_cap: float | None = None
+    sla_manager_seconds: float | None = None
+
+
+@app.get('/api/manager/discounts')
+def discounts_list(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    return {'rules': discounts.rules(), 'agent_cap': discounts.agent_cap(), 'sla_manager_seconds': discounts.sla_seconds(),
+            'scopes': discounts.SCOPES}
+
+
+@app.post('/api/manager/discounts')
+def discounts_save(body: DiscountIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    try:
+        return discounts.save(body.model_dump(), m['name'])
+    except discounts.DiscountError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.delete('/api/manager/discounts/{rid}')
+def discounts_delete(rid: int, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    discounts.delete(rid)
+    return {'ok': True}
+
+
+@app.post('/api/manager/settings')
+def settings_save(body: SettingsIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    try:
+        if body.agent_discount_cap is not None:
+            discounts.set_agent_cap(body.agent_discount_cap)
+        if body.sla_manager_seconds is not None:
+            if not 30 <= body.sla_manager_seconds <= 3600:
+                raise discounts.DiscountError('Регламент ответа — от 30 с до 60 мин')
+            discounts.set_setting('sla_manager_seconds', body.sla_manager_seconds)
+    except discounts.DiscountError as e:
+        raise HTTPException(400, str(e)) from e
+    return {'agent_cap': discounts.agent_cap(), 'sla_manager_seconds': discounts.sla_seconds()}
+
+
+@app.get('/api/manager/discounts/preview')
+def discounts_preview(q: str = Query('', max_length=200), m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Проверка правила: какие товары каталога под него попадут (по поиску) и какая скидка будет применена."""
+    res = catalog.search(q, {}, limit=8) if len(q.strip()) >= 2 else []
+    active = discounts.rules(active_only=True)
+    return {'items': [{'product': r['product'], 'vendor': r['vendor'], 'price_from_rub': r['price_from_rub'],
+                       'promo': discounts.best_for({'vendor': r['vendor'], 'product': r['product'], 'category_path': r.get('category', ''),
+                                                    'group_id': r['group_id']}, active)} for r in res]}
 
 
 @app.post('/api/manager/catalog/reload')

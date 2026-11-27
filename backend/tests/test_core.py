@@ -102,3 +102,38 @@ def test_discount_limit_and_invoice():
         quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}], discount_percent=15)  # больше 5% — только менеджер
     html = quotes.render_html({**quotes.get(inv['quote_id']), 'customer': {'company': 'ООО Тест', 'inn': '7701234567'}})
     assert 'Счёт на оплату' in html and '7736227885' in html and 'скидка 5%' in html.lower()
+
+
+def test_promo_table_and_agent_cap():
+    """Таблица скидок менеджера: акция применяется в КП сама и может быть больше лимита агента; лимит агента меняется."""
+    from app import discounts, quotes
+    cid = agent.new_conversation()
+    o = catalog.get_offers([477682])[477682]
+    r = discounts.save({'scope': 'vendor', 'match': o['vendor'][:6], 'percent': 7, 'title': 'Акция вендора'}, 'Менеджер')
+    q = quotes.create(cid, [{'offer_id': 477682, 'quantity': 2}], kind='quote')
+    assert q['items'][0]['discount'] == 7 and q['items'][0]['promo'] == 'Акция вендора'
+    assert q['total_rub'] == round(round(47808 * 0.93, 2) * 2, 2)
+    # своя скидка агента в пределах лимита, акция выгоднее — берётся акция
+    q = quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}], discount_percent=5)
+    assert q['items'][0]['discount'] == 7
+    discounts.delete(r['id'])
+    discounts.set_agent_cap(3)
+    with pytest.raises(quotes.QuoteError):
+        quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}], discount_percent=5)
+    discounts.set_agent_cap(5)
+    with pytest.raises(discounts.DiscountError):
+        discounts.save({'scope': 'product', 'match': 'x', 'percent': 5}, 'Менеджер')  # слишком короткое условие
+    hit = discounts.best_for({'vendor': 'Kaspersky', 'product': 'KES'}, [{'id': 1, 'scope': 'all', 'match': '', 'percent': 3, 'title': 'Все'}])
+    assert hit and hit['percent'] == 3
+
+
+def test_quote_issued_without_manager():
+    """Ответ организаторов: КП выдаётся клиенту сразу, подтверждение менеджера — по желанию."""
+    from app import quotes
+    cid = agent.new_conversation()
+    q = quotes.create(cid, [{'offer_id': 477682, 'quantity': 1}])
+    try:
+        q = quotes.set_requisites(q['quote_id'], {'company': 'ООО Тест', 'inn': '7701234567'})
+    except OSError:  # PDF рендерится в Docker (WeasyPrint); статус проверяем по базе
+        pass
+    assert quotes.get(q['quote_id'])['status'] == 'issued'

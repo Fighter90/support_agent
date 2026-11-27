@@ -38,7 +38,7 @@ function QuoteCard({ q, onDone, filled }: { q: Quote; onDone: () => void; filled
     return (
       <div className="quote">
         <FileText size={18} />
-        <div><b>{q.kind === 'invoice' ? 'Счёт' : 'КП'} {q.number}</b> · {rub(q.total_rub)}<div className="muted">{q.status === 'approved' ? 'Подтверждено менеджером' : 'Черновик, проверяется менеджером'}</div></div>
+        <div><b>{q.kind === 'invoice' ? 'Счёт' : 'КП'} {q.number}</b> · {rub(q.total_rub)}<div className="muted">{q.status === 'approved' ? 'Подтверждено менеджером' : 'Готов — можно скачать и оплатить'}{q.discount ? ` · скидка ${q.discount}%` : ''}</div></div>
         {q.pdf && <a className="btn sm" href={q.pdf} target="_blank" rel="noreferrer">PDF</a>}
         {payEnabled && <PayButton qid={q.quote_id} />}
       </div>

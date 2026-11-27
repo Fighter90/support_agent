@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS quotes (
   id TEXT PRIMARY KEY, number TEXT, conv_id TEXT, items TEXT, total REAL, vat REAL,
   customer TEXT DEFAULT '{}', status TEXT DEFAULT 'awaiting_requisites', created_at REAL, updated_at REAL,
   kind TEXT DEFAULT 'quote',             -- quote (КП) | invoice (счёт на оплату)
-  discount REAL DEFAULT 0                -- скидка агента, % (не больше MAX_AUTO_DISCOUNT)
+  discount REAL DEFAULT 0                -- максимальная скидка по строкам, % (акция или лимит агента)
 );
 CREATE TABLE IF NOT EXISTS kb (
   id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, body TEXT, source TEXT, url TEXT DEFAULT '', created_at REAL
@@ -74,6 +74,11 @@ CREATE TABLE IF NOT EXISTS examples (              -- ответы, отмече
 CREATE VIRTUAL TABLE IF NOT EXISTS examples_fts USING fts5(question, content='examples', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
 CREATE TRIGGER IF NOT EXISTS ex_ai AFTER INSERT ON examples BEGIN
   INSERT INTO examples_fts(rowid, question) VALUES (new.id, new.question); END;
+CREATE TABLE IF NOT EXISTS discounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, scope TEXT, match TEXT, percent REAL, active INTEGER DEFAULT 1,
+  valid_until REAL, note TEXT DEFAULT '', created_by TEXT DEFAULT '', created_at REAL, updated_at REAL
+);
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """
 
 

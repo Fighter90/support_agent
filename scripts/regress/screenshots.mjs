@@ -15,7 +15,7 @@ const mg = ctx.pages()[0] || await ctx.newPage()
 await mg.goto(`${BASE}/manager`)
 await mg.getByText('Живой чат').first().waitFor({ timeout: 15000 })
 await mg.waitForTimeout(1500)
-const tabs = [['live', 'Живой чат'], ['escalations', 'Эскалации'], ['dialogs', 'Диалоги'], ['quotes', 'КП и счета'], ['feedback', 'Отзывы'],
+const tabs = [['live', 'Живой чат'], ['escalations', 'Эскалации'], ['dialogs', 'Диалоги'], ['quotes', 'КП и счета'], ['discounts', 'Скидки'], ['feedback', 'Отзывы'],
   ['kb', 'База знаний'], ['metrics', 'Метрики'], ['telegram', 'Telegram']]
 for (const [key, label] of tabs) {
   await mg.locator('aside button', { hasText: label }).first().click()

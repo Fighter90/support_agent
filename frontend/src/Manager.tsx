@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsUp } from 'lucide-react'
-import { HelpCircle, Send as TgIcon } from 'lucide-react'
+import { HelpCircle, Percent, Send as TgIcon } from 'lucide-react'
 import Help from './Help'
 import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram' | 'help'
+type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram' | 'help' | 'discounts'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
@@ -184,7 +184,7 @@ function Escalations() {
         {items.length === 0 && <div className="muted pad">Нет обращений</div>}
         {items.map(e => (
           <button key={e.id} className={`item ${sel?.id === e.id ? 'on' : ''}`} onClick={() => { setSel(e); setMsg('') }}>
-            <div className="item-top"><span className="tag red">{e.category}</span><span className="muted small">{dt(e.created_at)}</span></div>
+            <div className="item-top"><span className="tag red">{e.category}</span><span className="muted small">{dt(e.created_at)}{e.status === 'open' && <Wait since={e.created_at} />}</span></div>
             <div className="item-title">{e.summary}</div>
           </button>
         ))}
@@ -260,9 +260,9 @@ function Quotes() {
             <td>{q.customer?.company || '—'}<div className="muted small">{q.customer?.inn ? `ИНН ${q.customer.inn}` : 'ждём реквизиты'}</div></td>
             <td>{q.items.map((i: any) => <div key={i.offer_id} className="small">{i.quantity} × {i.name}</div>)}</td>
             <td>{rub(q.total)}</td>
-            <td><span className={`tag ${q.status === 'approved' ? 'green' : ''}`}>{{ awaiting_requisites: 'Ждём реквизиты', draft: 'Черновик', approved: 'Подтверждено' }[q.status as string]}</span></td>
+            <td><span className={`tag ${q.status === 'approved' ? 'green' : ''}`}>{{ awaiting_requisites: 'Ждём реквизиты', draft: 'Выдан клиенту', issued: 'Выдан клиенту', approved: 'Подтверждено' }[q.status as string]}</span></td>
             <td>{payOf(q.id) ? <span className={`tag ${payOf(q.id).status === 'succeeded' ? 'green' : ''}`}>{({ pending: 'Ожидает оплаты', succeeded: 'Оплачен', canceled: 'Отменён', waiting_for_capture: 'Ожидает подтверждения' } as any)[payOf(q.id).status] || payOf(q.id).status}</span> : '—'}</td>
-            <td className="nowrap">{q.status !== 'awaiting_requisites' && <button className="btn sm ghost" onClick={() => pdf(q.id)}>PDF</button>} {q.status === 'draft' && <button className="btn sm" onClick={() => approve(q.id)}>Подтвердить</button>} {pays.enabled && q.status !== 'awaiting_requisites' && !payOf(q.id) && <button className="btn sm ghost" onClick={() => link(q.id)}><CreditCard size={13} /> Ссылка на оплату</button>}</td>
+            <td className="nowrap">{q.status !== 'awaiting_requisites' && <button className="btn sm ghost" onClick={() => pdf(q.id)}>PDF</button>} {(q.status === 'draft' || q.status === 'issued') && <button className="btn sm" onClick={() => approve(q.id)}>Подтвердить</button>} {pays.enabled && q.status !== 'awaiting_requisites' && !payOf(q.id) && <button className="btn sm ghost" onClick={() => link(q.id)}><CreditCard size={13} /> Ссылка на оплату</button>}</td>
           </tr>
         ))}
       </tbody></table>
@@ -332,7 +332,10 @@ function Metrics() {
   useEffect(() => { api('/api/manager/metrics', { auth: true }).then(setM).catch(() => {}) }, [])
   if (!m) return <div className="muted pad">Загрузка…</div>
   const tiles = [
-    ['Диалогов', m.conversations], ['Решено без менеджера', `${Math.round(m.automation_rate * 100)}%`], ['Открытых эскалаций', m.escalations_open],
+    ['Диалогов', m.conversations], ['Закрыто агентом', `${Math.round(m.automation_rate * 100)}%`], ['Открытых эскалаций', m.escalations_open],
+    ['Первый ответ клиенту (медиана)', m.sla?.agent_first_response_median_sec != null ? `${m.sla.agent_first_response_median_sec} с` : '—'],
+    ['Ответ менеджера на эскалацию', m.sla?.manager_first_response_median_sec != null ? sec(m.sla.manager_first_response_median_sec) : '—'],
+    ['В регламенте ' + sec(m.sla?.target_sec ?? 120), m.sla?.manager_within_sla_share != null ? `${Math.round(m.sla.manager_within_sla_share * 100)}%` : '—'],
     ['Стоимость 1 запроса', rub(m.cost_per_request_rub)], ['Всего на модели', rub(m.cost_total_rub)], ['Статей от менеджеров', m.kb_from_managers],
     ['CSAT', m.learning?.csat ?? '—'], ['Вопрос решён (опрос)', m.learning?.resolved_share != null ? `${Math.round(m.learning.resolved_share * 100)}%` : '—'],
   ]
@@ -345,7 +348,91 @@ function Metrics() {
         <div className="panel"><b>Инструменты агента</b>{m.tools.map((s: any) => <div key={s.tool} className="kv"><span>{s.tool}</span><span>{s.n} · {s.avg_ms} мс</span></div>)}</div>
         <div className="panel"><b>Модели</b>{m.llm.map((s: any) => <div key={s.provider} className="kv"><span>{s.provider}</span><span>{s.calls} выз. · {(s.tokens_in || 0) + (s.tokens_out || 0)} ток. · {s.cost_rub} ₽ · {s.avg_ms} мс</span></div>)}</div>
         <div className="panel"><b>КП</b>{m.quotes.map((s: any) => <div key={s.status} className="kv"><span>{s.status}</span><span>{s.n} · {rub(s.total_rub)}</span></div>)}</div>
+        <div className="panel"><b>Регламент ответа</b>
+          <div className="kv"><span>Было: первый ответ человека</span><span>~2 мин (данные заказчика)</span></div>
+          <div className="kv"><span>Сейчас: первый ответ агента, медиана / p90</span><span>{m.sla?.agent_first_response_median_sec ?? '—'} с / {m.sla?.agent_first_response_p90_sec ?? '—'} с</span></div>
+          <div className="kv"><span>Цель для менеджера по эскалации</span><span>{sec(m.sla?.target_sec ?? 120)}</span></div>
+          <div className="kv"><span>Просрочено сейчас</span><span>{m.sla?.escalations_overdue ?? 0}</span></div>
+          <div className="kv"><span>«Закрыто агентом» (с подтверждением КП одной кнопкой)</span><span>{m.resolved_without_human} (из них КП {m.closed_with_quote_approval})</span></div></div>
         <div className="panel"><b>Каталог</b><div className="kv"><span>Позиций</span><span>{m.catalog.offers}</span></div><div className="kv"><span>С ценой</span><span>{m.catalog.available_priced}</span></div><div className="kv"><span>Обновлён</span><span>{m.catalog.loaded_at}</span></div></div>
+      </div>
+    </div>
+  )
+}
+
+const sec = (x: number) => x >= 90 ? `${Math.round(x / 6) / 10} мин` : `${Math.round(x)} с`
+
+function Wait({ since }: { since: number }) {
+  const [, tick] = useState(0)
+  useEffect(() => { const t = window.setInterval(() => tick(x => x + 1), 5000); return () => window.clearInterval(t) }, [])
+  const w = Date.now() / 1000 - since
+  return <span className={`tag ${w > 120 ? 'red' : 'green'}`} style={{ marginLeft: 6 }} title="Регламент первого ответа менеджера — 2 мин">ждёт {sec(w)}</span>
+}
+
+function Discounts() {
+  const [d, setD] = useState<any>(null)
+  const [form, setForm] = useState<any>({ scope: 'product', match: '', percent: 5, title: '', active: true, valid: '' })
+  const [cap, setCap] = useState('')
+  const [sla, setSla] = useState('')
+  const [msg, setMsg] = useState('')
+  const [q, setQ] = useState('')
+  const [prev, setPrev] = useState<any[]>([])
+  const load = () => api<any>('/api/manager/discounts', { auth: true }).then(x => { setD(x); setCap(String(x.agent_cap)); setSla(String(x.sla_manager_seconds / 60)) })
+  useEffect(() => { load() }, [])
+  useEffect(() => { const t = window.setTimeout(() => { if (q.trim().length >= 2) api<any>(`/api/manager/discounts/preview?q=${encodeURIComponent(q)}`, { auth: true }).then(x => setPrev(x.items)) ; else setPrev([]) }, 300); return () => window.clearTimeout(t) }, [q, d])
+  const save = async () => {
+    try {
+      const body = { ...form, percent: Number(form.percent), valid_until: form.valid ? new Date(form.valid + 'T23:59:59').getTime() / 1000 : null }
+      await api('/api/manager/discounts', { auth: true, body }); setForm({ scope: 'product', match: '', percent: 5, title: '', active: true, valid: '' }); setMsg('Скидка сохранена — агент начнёт предлагать её сразу'); load()
+    } catch (e) { setMsg((e as Error).message) }
+  }
+  const saveSettings = async () => {
+    try { await api('/api/manager/settings', { auth: true, body: { agent_discount_cap: Number(cap), sla_manager_seconds: Number(sla) * 60 } }); setMsg('Настройки сохранены'); load() } catch (e) { setMsg((e as Error).message) }
+  }
+  const toggle = async (r: any) => { await api('/api/manager/discounts', { auth: true, body: { ...r, active: !r.active } }); load() }
+  const del = async (id: number) => { await api(`/api/manager/discounts/${id}`, { auth: true, method: 'DELETE' }); load() }
+  const edit = (r: any) => setForm({ ...r, active: !!r.active, valid: r.valid_until ? new Date(r.valid_until * 1000).toISOString().slice(0, 10) : '' })
+  if (!d) return <div className="muted pad">Загрузка…</div>
+  return (
+    <div className="pad">
+      <div className="panel">
+        <b>Полномочия агента и регламент</b>
+        <p className="muted small">Агент сам предлагает клиенту скидку до этого лимита — даже без купона. Больше — только менеджер. Отсрочку и постоплату агент всегда передаёт менеджеру.</p>
+        <div className="row-form">
+          <label>Скидка агента без согласования, %<input type="number" min={0} max={15} step={0.5} value={cap} onChange={e => setCap(e.target.value)} /></label>
+          <label>Регламент первого ответа менеджера, мин<input type="number" min={0.5} max={60} step={0.5} value={sla} onChange={e => setSla(e.target.value)} /></label>
+          <button className="btn" onClick={saveSettings}>Сохранить</button>
+        </div>
+      </div>
+      <div className="panel">
+        <b>{form.id ? 'Изменить скидку' : 'Новая скидка (акция)'}</b>
+        <p className="muted small">Акция из таблицы согласована менеджером, поэтому может быть больше лимита агента. Агент сам говорит о ней клиенту, а в КП и счёте она подставляется автоматически.</p>
+        <div className="row-form">
+          <label>Применяется к<select value={form.scope} onChange={e => setForm({ ...form, scope: e.target.value })}>{Object.entries(d.scopes).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}</select></label>
+          {form.scope !== 'all' && <label className="grow">{{ vendor: 'Вендор (часть названия)', product: 'Продукт — часть названия линейки или group_id', category: 'Категория (часть названия)', offer: 'Артикулы через запятую' }[form.scope as string]}<input value={form.match} onChange={e => setForm({ ...form, match: e.target.value })} placeholder={{ vendor: 'Касперск', product: 'Kaspersky Endpoint Security', category: 'Антивирусы', offer: '4986, 4985' }[form.scope as string]} /></label>}
+          <label>Скидка, %<input type="number" min={0.5} max={50} step={0.5} value={form.percent} onChange={e => setForm({ ...form, percent: e.target.value })} /></label>
+          <label>Действует до<input type="date" value={form.valid} onChange={e => setForm({ ...form, valid: e.target.value })} /></label>
+          <label className="grow">Название для клиента<input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Например: Неделя Kaspersky" /></label>
+          <button className="btn" onClick={save}>{form.id ? 'Сохранить' : 'Добавить'}</button>
+          {form.id && <button className="btn ghost" onClick={() => setForm({ scope: 'product', match: '', percent: 5, title: '', active: true, valid: '' })}>Отмена</button>}
+        </div>
+        {msg && <div className="ok small">{msg}</div>}
+      </div>
+      <div className="panel">
+        <b>Таблица скидок</b>
+        {d.rules.length === 0 ? <div className="muted small">Акций пока нет — агент даёт только скидку в пределах лимита.</div> : (
+          <table><thead><tr><th>Название</th><th>Применяется к</th><th>Условие</th><th>Скидка</th><th>Действует до</th><th>Статус</th><th>Кто</th><th></th></tr></thead>
+            <tbody>{d.rules.map((r: any) => (
+              <tr key={r.id}><td>{r.title}</td><td>{d.scopes[r.scope]}</td><td>{r.match || '—'}</td><td><b>{r.percent}%</b></td>
+                <td>{r.valid_until ? dt(r.valid_until) : 'бессрочно'}</td>
+                <td><span className={`tag ${r.active ? 'green' : ''}`}>{r.active ? 'Действует' : 'Выключена'}</span></td><td className="muted small">{r.created_by}</td>
+                <td className="nowrap"><button className="btn sm ghost" onClick={() => edit(r)}>Изменить</button> <button className="btn sm ghost" onClick={() => toggle(r)}>{r.active ? 'Выключить' : 'Включить'}</button> <button className="btn sm ghost" onClick={() => del(r.id)}>Удалить</button></td></tr>))}
+            </tbody></table>)}
+      </div>
+      <div className="panel">
+        <b>Проверка: что увидит клиент</b>
+        <input className="full" value={q} onChange={e => setQ(e.target.value)} placeholder="Найдите товар в каталоге, например «касперский»" />
+        {prev.map((i, k) => <div key={k} className="kv"><span>{i.product} · {i.vendor}</span><span>{i.price_from_rub ? 'от ' + rub(i.price_from_rub) : 'цена по запросу'}{i.promo ? ` → −${i.promo.percent}% «${i.promo.title}»` : ' · акции нет'}</span></div>)}
       </div>
     </div>
   )
@@ -388,7 +475,7 @@ export default function Manager() {
   const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon], ['help', 'Справка', HelpCircle]]
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['discounts', 'Скидки', Percent], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon], ['help', 'Справка', HelpCircle]]
   return (
     <div className="mgr">
       <aside>
@@ -407,6 +494,7 @@ export default function Manager() {
         {tab === 'feedback' && <Feedback />}
         {tab === 'kb' && <Kb />}
         {tab === 'metrics' && <Metrics />}
+        {tab === 'discounts' && <Discounts />}
         {tab === 'telegram' && <Telegram />}
         {tab === 'help' && <Help />}
       </section>

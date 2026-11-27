@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app import catalog, db, kb, llm, pii, quotes
+from app import card, catalog, db, discounts, kb, llm, pii, quotes
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -60,14 +60,20 @@ TOOLS: list[dict[str, Any]] = [
     {'type': 'function', 'function': {
         'name': 'create_quote',
         'description': 'Сформировать коммерческое предложение (document="quote") или счёт на оплату (document="invoice"), когда клиент '
-                       'согласился с выбором. Цены берутся из каталога автоматически. Скидка — только если клиент просит скидку или отсрочку, не больше 5%.',
+                       'согласился с выбором. Документ сразу выдаётся клиенту. Цены берутся из каталога автоматически; скидка по акции '
+                       'из таблицы менеджера подставляется сама. discount_percent — твоя скидка в пределах лимита агента.',
         'parameters': {'type': 'object', 'properties': {
             'items': {'type': 'array', 'items': {'type': 'object', 'properties': {
                 'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer', 'description': 'Число лицензий: для цен «за узел/пользователя» — число узлов или пользователей клиента'}},
                 'required': ['offer_id', 'quantity']}},
             'document': {'type': 'string', 'enum': ['quote', 'invoice'], 'description': 'КП (по умолчанию) или счёт на оплату'},
-            'discount_percent': {'type': 'number', 'description': 'Скидка 0–5% по просьбе клиента; больше — только через менеджера'},
+            'discount_percent': {'type': 'number', 'description': 'Скидка агента в пределах лимита (обычно до 5%); больше — только через менеджера'},
         }, 'required': ['items']}}},
+    {'type': 'function', 'function': {
+        'name': 'get_product_card',
+        'description': 'Карточка товара на сайте store.softline.ru: описание, характеристики, системные требования, условия поставки и '
+                       'лицензирования. Используй, если ответа нет в базе знаний, а вопрос о конкретном товаре (offer_id из вариантов).',
+        'parameters': {'type': 'object', 'properties': {'offer_id': {'type': 'integer'}}, 'required': ['offer_id']}}},
     {'type': 'function', 'function': {
         'name': 'escalate_to_manager',
         'description': 'Передать обращение менеджеру: цена по запросу, скидки и спецусловия, тендеры, вопросы по заказу, '
@@ -92,6 +98,15 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
         for r in res:
             ctx['prices'].update(p for p in (r['price_from_rub'], r['price_to_rub']) if p)
             ctx['prices'].update(o['price_rub'] for o in r['matched_offers'] if o['price_rub'])
+        active = discounts.rules(active_only=True)
+        for r in res:  # акции из таблицы менеджера: агент сам говорит о них клиенту
+            promo = discounts.best_for({'vendor': r['vendor'], 'product': r['product'], 'category_path': r.get('category', ''),
+                                        'group_id': r['group_id']}, active)
+            if promo:
+                r['promo'] = promo
+                if r.get('price_from_rub'):
+                    r['promo']['price_from_with_discount_rub'] = round(r['price_from_rub'] * (1 - promo['percent'] / 100), 2)
+                    ctx['prices'].add(r['promo']['price_from_with_discount_rub'])
         ctx['products'] = [{'group_id': r['group_id'], 'product': r['product'], 'vendor': r['vendor'], 'url': r['url'],
                             'price_from_rub': r['price_from_rub'], 'domestic': r['domestic'], 'registry': r['registry']} for r in res[:4]]
         return {'results': res, 'hint': '' if res else 'Ничего не найдено: переформулируй запрос (синонимы, вендор, класс ПО) или передай менеджеру.'}
@@ -120,11 +135,26 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
             res['note'] = ('Точного совпадения нет; без фильтра «' + '», «'.join(ru[d] for d in dropped) +
                            '» найдены варианты ниже — предложи ближайшие и скажи клиенту, чем они отличаются от запроса.')
         keep = ('offer_id', 'name', 'price_rub', 'price_note', 'users_max', 'nodes', 'term', 'license_type', 'org_type', 'available')
-        res['variants'] = [{k: v[k] for k in keep if k in v} for v in res.get('variants', [])][:12]
+        active = discounts.rules(active_only=True)
+        compact = []
+        for v in res.get('variants', [])[:12]:
+            c = {k: v[k] for k in keep if k in v}
+            promo = discounts.best_for({'id': v.get('offer_id'), 'vendor': res.get('vendor', ''), 'product': res.get('product', ''),
+                                        'group_id': gid, 'category_path': v.get('category_path', '')}, active)
+            if promo and v.get('price_rub'):
+                c['promo'] = f'акция «{promo["title"]}» −{promo["percent"]:g}%'
+                c['price_with_discount_rub'] = round(v['price_rub'] * (1 - promo['percent'] / 100), 2)
+                ctx['prices'].add(c['price_with_discount_rub'])
+            compact.append(c)
+        res['variants'] = compact
+        cap = discounts.agent_cap()
+        ctx['prices'].update(round(v['price_rub'] * (1 - cap / 100), 2) for v in compact if v.get('price_rub'))
         ctx['prices'].update(v['price_rub'] for v in res.get('variants', []) if v.get('price_rub'))
         ctx['offers'] = [{'offer_id': v['offer_id'], 'name': v['name'], 'price_rub': v.get('price_rub')}
                          for v in res.get('variants', [])[:6]]
         return res
+    if name == 'get_product_card':
+        return card.get(int(args.get('offer_id') or 0))
     if name == 'search_knowledge':
         arts = kb.search(str(args.get('query', '')), limit=3)
         ctx['kb'] = [{'title': a['title'], 'url': a['url'], 'source': a['source']} for a in arts]
@@ -139,7 +169,9 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
         ctx['quote'] = {'quote_id': q['quote_id'], 'number': q['number'], 'total_rub': q['total_rub'], 'status': q['status'],
                         'kind': q['kind'], 'discount': q['discount_percent']}
         doc = 'счёт' if q['kind'] == 'invoice' else 'КП'
-        return {**q, 'next_step': f'Скажи клиенту, что {doc} {q["number"]} подготовлен и нужно заполнить реквизиты в форме под сообщением.'}
+        disc = f' Скидка {q["discount_percent"]:g}% уже учтена в ценах — назови её.' if q.get('discount_percent') else ''
+        return {**q, 'next_step': f'Скажи клиенту, что {doc} {q["number"]} подготовлен и нужно заполнить реквизиты в форме под сообщением; '
+                                  f'после этого документ сразу готов к скачиванию и оплате.{disc}'}
     if name == 'escalate_to_manager':
         reason = args.get('reason') if args.get('reason') in REASONS else 'other'
         eid = db.execute('INSERT INTO escalations (conv_id, reason, category, summary, created_at) VALUES (?,?,?,?,?)',
@@ -255,6 +287,8 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
     if ex:  # примеры ответов, которые клиенты отметили полезными (цены в них вырезаны — бери из инструментов)
         note += '\n\nПримеры ответов на похожие вопросы, которые клиенты отметили полезными (стиль и маршрут, не факты):\n' + \
                 '\n'.join(f'— Вопрос: {e["question"][:300]}\n  Ответ: {e["answer"][:600]}' for e in ex)
+    note += (f'\n\nЛимит скидки, которую ты даёшь сам (без менеджера): {discounts.agent_cap():g}%. '
+             'Акции из таблицы менеджера приходят в результатах поиска (promo) — называй их клиенту.')
     messages = [{'role': 'system', 'content': PROMPT + ('\n\n' + note if note else '')}, *history]
     text = ''
     seen: set[str] = set()

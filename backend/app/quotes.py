@@ -2,7 +2,8 @@
 
 Агент вызывает create_quote с позициями (offer_id, количество). Цены берутся ТОЛЬКО из каталога (фида),
 модель их не задаёт. Реквизиты клиента (название, ИНН, КПП) вводятся в отдельной форме и в модель не попадают.
-КП создаётся черновиком и подтверждается менеджером в кабинете.
+КП и счёт выдаются клиенту сразу (ответ организаторов: проверка менеджером не обязательна); менеджер может
+подтвердить документ одной кнопкой. Скидка по строке = max(акция из таблицы «Скидки», скидка агента в пределах лимита).
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app import catalog, db
+from app import catalog, db, discounts
 from app.config import ROOT_DIR, get_settings
 
 VAT_RATE = 22  # ставка НДС с 01.01.2026; ПО из реестра Минцифры НДС не облагается (пп. 26 п. 2 ст. 149 НК РФ)
@@ -28,7 +29,6 @@ def _vat(price_total: float, domestic: bool) -> float:
     return 0.0 if domestic else round(price_total * VAT_RATE / (100 + VAT_RATE), 2)
 
 
-MAX_AUTO_DISCOUNT = 5.0  # заказчик на установочной встрече: агент сам даёт до 5%, больше — только менеджер
 
 
 def _tier(o: dict[str, Any]) -> tuple[int, int]:
@@ -39,8 +39,10 @@ def _tier(o: dict[str, Any]) -> tuple[int, int]:
 
 def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 0, kind: str = 'quote') -> dict[str, Any]:
     discount = float(discount_percent or 0)
-    if discount < 0 or discount > MAX_AUTO_DISCOUNT:
-        raise QuoteError(f'Скидку больше {MAX_AUTO_DISCOUNT:g}% агент не согласует — передай запрос менеджеру')
+    cap = discounts.agent_cap()  # заказчик: агент сам даёт до 5% (лимит меняет менеджер в кабинете)
+    if discount < 0 or discount > cap:
+        raise QuoteError(f'Скидку больше {cap:g}% агент не согласует — передай запрос менеджеру (reason=special_terms)')
+    promos = discounts.rules(active_only=True)
     kind = 'invoice' if kind == 'invoice' else 'quote'
     ids = [int(i.get('offer_id', 0)) for i in items if i.get('offer_id')]
     offers = catalog.get_offers(ids)
@@ -61,10 +63,13 @@ def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 
                             f'quantity должно быть числом узлов клиента в этом диапазоне (сейчас {qty}). '
                             'Если число клиента вне диапазона — возьми вариант с подходящим диапазоном.')
             continue
-        price = round(o['price'] * (1 - discount / 100), 2)
+        promo = discounts.best_for(o, promos)
+        d = max(discount, promo['percent'] if promo else 0)
+        price = round(o['price'] * (1 - d / 100), 2)
         total = round(price * qty, 2)
         lines.append({'offer_id': oid, 'article': str(oid), 'name': o['name'], 'quantity': qty, 'list_price': o['price'], 'price': price,
-                      'total': total, 'vat': _vat(total, bool(o['registry'])), 'domestic': bool(o['registry']), 'url': o['url']})
+                      'total': total, 'vat': _vat(total, bool(o['registry'])), 'domestic': bool(o['registry']), 'url': o['url'],
+                      'discount': d, 'promo': promo['title'] if promo and promo['percent'] >= d else ''})
     if not lines:
         raise QuoteError('; '.join(problems) or 'нет позиций для КП')
     qid = db.new_id('q')
@@ -72,6 +77,7 @@ def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 
     number = f'{"СЧ" if kind == "invoice" else "КП"}-{time.strftime("%Y%m%d")}-{n:04d}'
     total = round(sum(x['total'] for x in lines), 2)
     vat = round(sum(x['vat'] for x in lines), 2)
+    discount = max(x['discount'] for x in lines)
     db.execute('INSERT INTO quotes (id, number, conv_id, items, total, vat, status, created_at, updated_at, kind, discount) '
                'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
                (qid, number, conv_id, db.dumps(lines), total, vat, 'awaiting_requisites', db.now(), db.now(), kind, discount))
@@ -93,7 +99,7 @@ def set_requisites(qid: str, customer: dict[str, str]) -> dict[str, Any]:
         raise QuoteError('Укажите название организации и корректный ИНН (10 или 12 цифр)')
     if clean['kpp'] and (not clean['kpp'].isdigit() or len(clean['kpp']) != 9):
         raise QuoteError('КПП — 9 цифр')
-    db.execute("UPDATE quotes SET customer=?, status='draft', updated_at=? WHERE id=?", (db.dumps(clean), db.now(), qid))
+    db.execute("UPDATE quotes SET customer=?, status='issued', updated_at=? WHERE id=?", (db.dumps(clean), db.now(), qid))
     q = get(qid)
     render_pdf(q)
     return q
@@ -125,15 +131,18 @@ def render_html(q: dict[str, Any], approved_by: str = '') -> str:
         cust += f'<br>ИНН {html.escape(c["inn"])}' + (f', КПП {html.escape(c["kpp"])}' if c.get('kpp') else '')
     disc = float(q.get('discount') or 0)
     rows = ''.join(
-        f'<tr><td>{html.escape(i["article"])}</td><td>{html.escape(i["name"])}</td><td class="n">{i["quantity"]}</td>'
+        f'<tr><td>{html.escape(i["article"])}</td><td>{html.escape(i["name"])}'
+        f'{"<br><span class=m>скидка " + format(i.get("discount", 0), "g") + "% от " + _rub(i["list_price"]) + "</span>" if i.get("discount") else ""}</td><td class="n">{i["quantity"]}</td>'
         f'<td class="n">{_rub(i["price"])}</td><td class="n">{_rub(i["total"])}</td>'
         f'<td class="n">{"без НДС" if i["domestic"] else _rub(i["vat"])}</td></tr>' for i in q['items'])
     date = time.strftime('%d.%m.%Y', time.localtime(q['created_at']))
     valid = time.strftime('%d.%m.%Y', time.localtime(q['created_at'] + (5 if invoice else 14) * 86400))
     logo = f'<img class="logo" src="file://{LOGO}">' if LOGO.exists() else '<b>Софтлайн</b>'
     what = 'Счёт' if invoice else 'Коммерческое предложение'
-    status = f'{what}: черновик — ожидает проверки менеджером' if q['status'] != 'approved' else f'Проверено менеджером: {html.escape(approved_by or "менеджер")}'
-    disc_line = f'Применена скидка {disc:g}% (согласована ИИ-агентом в пределах полномочий).<br>' if disc else ''
+    status = (f'{what} сформирован автоматически по ценам каталога store.softline.ru' if q['status'] != 'approved'
+              else f'Проверено менеджером: {html.escape(approved_by or "менеджер")}')
+    promo_names = sorted({i.get('promo') for i in q['items'] if i.get('promo')})
+    disc_line = (f'Применена скидка до {disc:g}%' + (f' (акция: {html.escape(", ".join(promo_names))})' if promo_names else ' (в пределах полномочий ИИ-агента)') + '.<br>') if disc else ''
     s = SELLER
     if invoice:
         head = f"""<table class="bank"><tr><td colspan="2">{s['bank']}<br><span class="m">Банк получателя</span></td><td>БИК</td><td>{s['bik']}</td></tr>

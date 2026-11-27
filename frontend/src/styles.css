@@ -157,3 +157,9 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 .help-text li { margin-bottom: 6px; line-height: 1.45; }
 .help-text code { background: #F3F3F5; padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 900px) { .help-row { grid-template-columns: 1fr; } .help-toc ol { columns: 1; } }
+
+.row-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 10px 0; }
+.row-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 140px; }
+.row-form label.grow { flex: 1; min-width: 220px; }
+.row-form input, .row-form select, input.full { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; color: var(--ink); background: #fff; }
+input.full { width: 100%; box-sizing: border-box; margin: 8px 0; }
