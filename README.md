@@ -119,7 +119,8 @@ cd .. && .venv/bin/python eval/run_eval.py --n 60      # нужны перепи
 .venv/bin/python eval/catalog_rag_eval.py 8          # RAGAS по каталогу из фида (40 вопросов, судья GigaChat)
 .venv/bin/python eval/rag_eval.py                      # RAGAS по базе знаний
 .venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # реалтайм, кабинет, оплата (API)
-node scripts/regress/browser_regress.mjs                          # полный регресс в браузере (28 проверок)
+node scripts/regress/browser_regress.mjs                          # полный регресс в браузере (37 проверок)
+node scripts/regress/team_regress.mjs                             # команда: администратор и 2 менеджера (8 проверок)
 .venv/bin/python scripts/build_cost_xlsx.py            # пересчёт docs/cost.xlsx по замерам
 ```
 

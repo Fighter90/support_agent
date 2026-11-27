@@ -45,6 +45,9 @@ await step('Администратор: раздел «Команда», соз�
     if ((d.messages || []).some(m => m.role === 'user' && /Microsoft 365 для 300|отсрочку платежа 30 дней по счёту|Astra Linux для 20 рабочих/.test(m.content)))
       await api(adm, `/api/manager/escalations/${e.id}/close`, { note: 'Тестовое обращение регресса' })
   }
+  // диалоги, которые тестовые менеджеры ведут с прошлых прогонов, возвращаем агенту — нагрузка у обоих 0
+  for (const c of await api(adm, '/api/manager/conversations'))
+    if (c.mode === 'manager' && TEAM.some(([l]) => l === c.manager_login)) await api(adm, `/api/manager/conversations/${c.id}/takeover`, { on: false })
   const have = (await api(adm, '/api/admin/users')).users.map(u => u.login)
   for (const [login, name] of TEAM) {
     if (have.includes(login)) {  // уже создан в прошлом прогоне — выдаём новую ссылку
@@ -114,18 +117,24 @@ async function client(q) {
 }
 const assignee = async () => (await api(adm, '/api/manager/escalations?status=open'))
 let c1, c2, c3, firstTo
-await step('Автоназначение: два обращения — двум разным менеджерам (по нагрузке, по очереди)', adm, async () => {
+await step('Автоназначение: обращение — самому свободному менеджеру в сети, при равной нагрузке — по очереди', adm, async () => {
+  const loadOf = async () => Object.fromEntries((await api(adm, '/api/manager/team')).members.filter(m => TEAM.some(([l]) => l === m.login)).map(m => [m.login, m.load]))
+  const before = await loadOf()
   c1 = await client('Нужна консультация по лицензированию Microsoft 365 для 300 сотрудников')
   c2 = await client('Хотим отсрочку платежа 30 дней по счёту')
   await adm.waitForTimeout(4000)
   const open = await assignee()
   const e1 = open.find(e => e.id === c1.esc), e2 = open.find(e => e.id === c2.esc)
-  must(e1 && e2 && e1.assignee && e2.assignee && e1.assignee !== e2.assignee, 'назначения: ' + JSON.stringify([e1?.assignee, e2?.assignee]))
+  must(e1 && e2 && e1.assignee && e2.assignee, 'не назначены: ' + JSON.stringify([e1?.assignee, e2?.assignee]))
+  const minLoad = Math.min(...Object.values(before))
+  must(before[e1.assignee] === minLoad, `первое ушло не самому свободному: ${JSON.stringify(before)} → ${e1.assignee}`)
+  const [la, lb] = Object.values(before)
+  if (la === lb) must(e1.assignee !== e2.assignee, 'при равной нагрузке оба обращения ушли одному: ' + e1.assignee)
   firstTo = e1.assignee
   await adm.locator('aside button', { hasText: 'Эскалации' }).click(); await adm.waitForTimeout(500)
   await adm.locator('.seg button', { hasText: 'Все новые' }).click(); await adm.waitForTimeout(1500)
   await helpShot(adm, 'team_assign')
-  return `#${e1.id} → ${e1.assignee_name}, #${e2.id} → ${e2.assignee_name}`
+  return `нагрузка до: ${JSON.stringify(before)}; #${e1.id} → ${e1.assignee_name}, #${e2.id} → ${e2.assignee_name}`
 })
 
 const nameOf = l => TEAM.find(t => t[0] === l)[1]
@@ -187,8 +196,10 @@ await step('Метрики: блок «Команда» (в сети, очере
 })
 // уборка: тестовые обращения этого прогона закрываем, менеджеры уходят «не в сети»
 for (const c of [c1, c2, c3]) if (c?.esc) await api(adm, `/api/manager/escalations/${c.esc}/close`, { note: 'Тестовое обращение регресса' })
+for (const c of [c1, c2, c3]) if (c?.cid) await api(adm, `/api/manager/conversations/${c.cid}/takeover`, { on: false })
 for (const p of Object.values(mgr)) await p.locator('.statusbar select').selectOption('offline').catch(() => {})
 const ok = results.filter(r => r.ok).length
 fs.writeFileSync(OUT + 'team_report.json', JSON.stringify(results, null, 1))
 console.log(`ИТОГО ${ok}/${results.length}`)
-await browser.close(); await adminCtx.close()
+await Promise.race([Promise.all([browser.close(), adminCtx.close()]), new Promise(r => setTimeout(r, 15000))])
+process.exit(0)

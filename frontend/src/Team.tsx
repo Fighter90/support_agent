@@ -146,7 +146,7 @@ export function TeamAdmin() {
         <thead><tr><th>Сотрудник</th><th>Роль</th><th>Статус</th><th>Нагрузка</th><th>Ответов за 24 ч</th><th>Telegram</th><th>Автоназначение</th><th>Доступ</th><th></th></tr></thead>
         <tbody>{d.users.map((u: any) => (
           <tr key={u.login} className={u.active ? '' : 'muted'}>
-            <td><span className={`dot ${u.online ? '' : 'off'}`} /> <b>{u.name}</b><div className="muted small">{u.login}{u.created_by === 'env' ? ' · из .env' : ''}{!u.has_password ? ' · ещё не входил(а)' : ''}</div></td>
+            <td><span className={`dot ${u.online ? '' : 'off'}`} /> <b>{u.name}</b><div className="muted small">{u.login}{u.created_by === 'env' ? ' · из .env' : ''}{!u.has_password ? ' · пароль не задан (вход по ссылке)' : ''}</div></td>
             <td><select value={u.role} onChange={e => patch(u.login, { role: e.target.value })}><option value="manager">Менеджер</option><option value="admin">Администратор</option></select></td>
             <td><select value={u.status} onChange={e => patch(u.login, { status: e.target.value })}>{ST.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
               <div className="muted small">{u.last_seen ? 'был(а) ' + dt(u.last_seen) : 'не входил(а)'}</div></td>

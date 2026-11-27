@@ -10,6 +10,8 @@ fs.rmSync(OUT, { recursive: true, force: true }); fs.mkdirSync(OUT, { recursive:
 const ctx = await chromium.launchPersistentContext(process.env.PROFILE || new URL('../video/profile', import.meta.url).pathname, {
   channel: 'chrome', headless: false, viewport: { width: 1440, height: 900 }, ignoreDefaultArgs: ['--enable-automation'],
 })
+// ссылку на бота проверяем, но не открываем: иначе Chrome передаст её приложению Telegram на этом компьютере
+await ctx.route(/^https:\/\/t\.me\//, r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: '<p>Ссылка на бота перехвачена регрессом</p>' }))
 const results = []
 let n = 0
 async function step(name, page, fn) {
@@ -56,7 +58,7 @@ await step('Скидки: лимит агента 5% и акция в табли
   await mg.locator('aside button', { hasText: 'Скидки' }).click(); await mg.waitForTimeout(1500)
   const txt = await mg.locator('.mgr-main').innerText()
   if (!/Демо-акция Kaspersky/.test(txt)) {
-    await mg.locator('select').first().selectOption('vendor')
+    await mg.locator('.row-form').nth(1).locator('select').first().selectOption('vendor')
     await mg.locator('.row-form').nth(1).locator('input').first().fill('Касперск')
     await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('7')
     await mg.getByPlaceholder('Например: Неделя Kaspersky').fill('Демо-акция Kaspersky')
@@ -74,7 +76,7 @@ await step('Скидки: настройки, изменение, выключе
   await sets.nth(0).fill('5'); await sets.nth(1).fill('2'); await mg.getByRole('button', { name: 'Сохранить' }).first().click(); await mg.waitForTimeout(1000)
   must(/Настройки сохранены/.test(await mg.locator('.mgr-main').innerText()), 'настройки не сохранились')
   // временное правило: добавить → изменить → выключить → удалить
-  await mg.locator('select').first().selectOption('offer'); await mg.locator('.row-form').nth(1).locator('input').first().fill('4986')
+  await mg.locator('.row-form').nth(1).locator('select').first().selectOption('offer'); await mg.locator('.row-form').nth(1).locator('input').first().fill('4986')
   await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('3'); await mg.getByPlaceholder('Например: Неделя Kaspersky').fill('Регресс-тест')
   await mg.getByRole('button', { name: 'Добавить' }).click(); await mg.waitForTimeout(1200)
   const row = mg.locator('tr', { hasText: 'Регресс-тест' }); must(await row.count() === 1, 'правило не добавилось')
@@ -99,7 +101,8 @@ await step('Витрина: каталог, пометка «отвечает р
   return 'каталог и пометка на месте'
 })
 await step('Поиск по каталогу на витрине', cl, async () => {
-  const s = cl.locator('.search input'); await s.fill('касперский endpoint'); await cl.waitForTimeout(1500)
+  const s = cl.locator('.search input'); await s.fill('касперский endpoint')
+  await cl.locator('.suggest .sg').nth(1).waitFor({ timeout: 10000 }).catch(() => {})
   const k = await cl.locator('.suggest .sg').count()
   must(k >= 2, 'нет подсказок')
   const txt = await cl.locator('.suggest').innerText()
@@ -184,7 +187,7 @@ await step('Кабинет: вход сохранён, все разделы', m
 await step('Позвать оператора → диалог в кабинете в реальном времени', mg, async () => {
   await cl.getByText('Позвать оператора').first().click()
   const t0 = Date.now()
-  await mg.locator('.list .item').filter({ hasText: /Ждёт менеджера/ }).first().waitFor({ timeout: 10000 })
+  await mg.locator('.list .item').filter({ hasText: /В очереди|Назначен/ }).first().waitFor({ timeout: 10000 })
   return `эскалация видна через ${Date.now() - t0} мс`
 })
 await step('Взять диалог и ответить клиенту', mg, async () => {
@@ -208,7 +211,7 @@ await step('Вернуть агенту', mg, async () => {
 })
 await step('Эскалации: очередь с причиной и резюме', mg, async () => {
   await mg.getByRole('button', { name: /Эскалации/ }).click(); await mg.waitForTimeout(1500)
-  for (const t of ['Отвеченные', 'Все', 'Новые']) { await mg.locator('.seg button', { hasText: t }).click(); await mg.waitForTimeout(900) }
+  for (const t of ['Отвеченные', 'Все', 'Очередь', 'Мои', 'Все новые']) { await mg.locator('.seg').getByRole('button', { name: t, exact: true }).click(); await mg.waitForTimeout(900) }
   const t = await mg.locator('.mgr-main').innerText(); must(/ждёт/.test(t) || /Нет обращений/.test(t), 'нет таймера регламента')
   return 'вкладки Новые/Отвеченные/Все, таймер «ждёт …» на месте'
 })
@@ -266,9 +269,9 @@ await step('Telegram: бот включён, кнопка подключения
   must(/Подключить Telegram/.test(txt), 'бот не настроен'); must(/Отключить/.test(txt), 'нет подключённых чатов')
   return 'бот включён, подключённых чатов: ' + (await mg.getByRole('button', { name: 'Отключить' }).count())
 })
-await step('Справка: отдельный пункт меню, 16 разделов по шагам, все скриншоты загружаются', mg, async () => {
+await step('Справка: отдельный пункт меню, 19 разделов по шагам, все скриншоты загружаются', mg, async () => {
   await mg.locator('aside button', { hasText: 'Справка' }).click(); await mg.waitForTimeout(2000)
-  const secs = await mg.locator('.help-sec').count(); must(secs >= 16, 'разделов справки ' + secs)
+  const secs = await mg.locator('.help-sec').count(); must(secs >= 19, 'разделов справки ' + secs)
   await mg.evaluate(async () => { for (const im of document.querySelectorAll('.help img')) { im.loading = 'eager'; im.scrollIntoView(); await new Promise(r => setTimeout(r, 150)) } })
   await mg.waitForTimeout(1500)
   const broken = await mg.evaluate(() => [...document.querySelectorAll('.help img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src))
@@ -300,7 +303,8 @@ await step('Цикл обучения: вопрос без ответа → ме
   await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
   await ask(Q)
   if (!(await cl.locator('.chat-body .esc').count())) { await cl.getByText('Позвать оператора').first().click(); await cl.waitForTimeout(1500) }
-  await mg.bringToFront(); await mg.locator('aside button', { hasText: 'Эскалации' }).click(); await mg.waitForTimeout(2000)
+  await mg.bringToFront(); await mg.locator('aside button', { hasText: 'Эскалации' }).click(); await mg.waitForTimeout(1000)
+  await mg.locator('.seg button', { hasText: 'Все новые' }).click(); await mg.waitForTimeout(1500)
   await mg.locator('.list .item').first().click(); await mg.waitForTimeout(1000)
   const box = mg.getByPlaceholder('Ответ клиенту — придёт в его чат'); await box.fill(ANSWER)
   const kb = mg.locator('input[type=checkbox]').first(); if (!(await kb.isChecked())) await kb.check()
@@ -326,6 +330,20 @@ await step('Опрос в конце диалога (после 45 с тишин
   await cl.locator('.survey').getByRole('button', { name: 'Да' }).click(); await cl.locator('.survey').getByRole('button', { name: '5' }).click()
   await cl.locator('.survey').getByRole('button', { name: /Отправить/ }).click(); await cl.getByText(/Спасибо!/).last().waitFor({ timeout: 8000 })
   return 'опрос отправлен'
+})
+await step('История чатов: прошлые диалоги, открыть и продолжить; свернуть в иконку внизу справа', cl, async () => {
+  await cl.bringToFront()
+  await cl.getByRole('button', { name: /История/ }).click(); await cl.waitForTimeout(1500)
+  const n = await cl.locator('.hist-item').count(); must(n >= 2, 'в истории ' + n + ' диалогов')
+  await helpShot(cl, 'chat_history')
+  await cl.locator('.hist-item:not(.on)').first().click(); await cl.waitForTimeout(2000)
+  must(await cl.locator('.chat-body .msg.user').count() >= 1, 'прошлый диалог не открылся')
+  await cl.getByRole('button', { name: 'Свернуть чат' }).click(); await cl.waitForTimeout(500)
+  const fab = cl.locator('.chat-fab'); must(await fab.isVisible(), 'нет иконки чата')
+  const box = await fab.boundingBox(); const vp = cl.viewportSize()
+  must(box && box.x > vp.width - 140 && box.y > vp.height - 140, 'иконка не внизу справа')
+  await fab.click(); await cl.locator('.chat-head').waitFor()
+  return `${n} диалогов в истории, прошлый открыт; иконка внизу справа`
 })
 await step('Безопасность: /.env и API кабинета без токена', cl, async () => {
   const a = (await fetch(`${BASE}/.env`)).status, b = (await fetch(`${BASE}/api/manager/escalations`)).status

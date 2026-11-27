@@ -122,7 +122,7 @@ function LiveChat() {
   }
   const takeover = async (on: boolean) => { await api(`/api/manager/conversations/${sel}/takeover`, { auth: true, body: { on } }); loadConv(sel); loadList() }
   const colleague = async (kind: 'transfer' | 'invite', login: string) => { await api(`/api/manager/conversations/${sel}/${kind}`, { auth: true, body: { login } }); loadConv(sel); loadList() }
-  const visible = list.filter(c => c.n_messages > 1 && (!mine || c.manager_login === me?.login || (c.participants || '').split(',').includes(me?.login || '')))
+  const visible = list.filter(c => (c.n_user ?? 1) > 0 && (!mine || c.manager_login === me?.login || (c.participants || '').split(',').includes(me?.login || '')))
   const parts: any[] = conv?.participants || []
   return (
     <div className="split">
@@ -131,7 +131,7 @@ function LiveChat() {
         {visible.map(c => (
           <button key={c.id} className={`item ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(c.id)}>
             <div className="item-top">
-              <span className={`tag ${c.status === 'escalated' ? 'red' : c.mode === 'manager' ? 'green' : ''}`}>{c.mode === 'manager' ? `Ведёт ${c.manager || 'менеджер'}` : c.status === 'escalated' ? (c.assignee_name ? `Назначен: ${c.assignee_name}` : 'В очереди') : 'Агент'}</span>
+              <span className={`tag ${c.open_esc ? 'red' : c.mode === 'manager' ? 'green' : ''}`}>{c.mode === 'manager' ? `Ведёт ${c.manager || 'менеджер'}` : c.open_esc ? (c.assignee_name ? `Назначен: ${c.assignee_name}` : 'В очереди') : c.status === 'closed' ? 'Закрыт' : 'Агент'}</span>
               <span>{unread[c.id] ? <span className="unread">{unread[c.id]}</span> : null} <span className="muted small">{dt(c.updated_at)}</span></span>
             </div>
             <div className="item-title">{c.title || 'Без сообщений'}</div>
@@ -178,8 +178,10 @@ function LiveChat() {
 }
 
 function Escalations() {
-  const [status, setStatus] = useState('mine')
   const me = useMe()
+  const [status, setStatus] = useState(me?.role === 'admin' ? 'open' : 'mine')  // администратору — все новые, менеджеру — свои
+  const roleSet = useRef(!!me)
+  useEffect(() => { if (me && !roleSet.current) { roleSet.current = true; setStatus(me.role === 'admin' ? 'open' : 'mine') } }, [me])
   const [items, setItems] = useState<any[]>([])
   const [sel, setSel] = useState<any>(null)
   const [answer, setAnswer] = useState('')

@@ -19,6 +19,7 @@ texts = {i['id']: i.get('sub', i['text']) for i in json.loads((HERE / 'narration
 dur = json.loads((OUT / 'durations.json').read_text())
 raw_len = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(OUT / 'raw.webm')],
                                capture_output=True, text=True).stdout or tl['end'] / 1000)
+raw_len = min(raw_len, tl['end'] / 1000 + 0.5)  # хвост записи после финального кадра (закрытие браузеров) не нужен
 lag = 0.0  # запись видео начинается вместе с отсчётом сценария (запуск браузера); хвост записи — после финала
 waits = [(w['start'] / 1000 + lag, w['end'] / 1000 + lag) for w in tl['waits'] if w['end'] - w['start'] > 1500]
 total_wait = sum(b - a for a, b in waits)

@@ -455,7 +455,9 @@ def conversations(m: dict = Depends(auth.manager)) -> list[dict[str, Any]]:
     rs = db.rows('SELECT c.*, (SELECT count(*) FROM messages WHERE conv_id=c.id) AS n_messages, '
                  '(SELECT round(sum(cost_rub), 4) FROM llm_calls WHERE conv_id=c.id) AS cost_rub, '
                  "(SELECT u.name FROM escalations e JOIN users u ON u.login=e.assignee WHERE e.conv_id=c.id AND e.status='open' LIMIT 1) AS assignee_name, "
-                 "(SELECT group_concat(login) FROM conv_managers WHERE conv_id=c.id) AS participants "
+                 "(SELECT group_concat(login) FROM conv_managers WHERE conv_id=c.id) AS participants, "
+                 "(SELECT count(*) FROM messages WHERE conv_id=c.id AND role='user') AS n_user, "
+                 "(SELECT count(*) FROM escalations WHERE conv_id=c.id AND status='open') AS open_esc "
                  'FROM conversations c ORDER BY c.updated_at DESC LIMIT 300')
     for r in rs:
         r['title'] = pii.unmask(r['id'], r['title'] or '')
@@ -549,6 +551,8 @@ def close_escalation(eid: int, body: CloseIn, m: dict = Depends(auth.manager)) -
     db.execute("UPDATE escalations SET status='closed', manager=?, answer=?, answered_at=? WHERE id=? AND status='open'",
                (m['name'], body.note or 'Закрыто без ответа', db.now(), eid))
     team._log(e['conv_id'], eid, 'close', m['login'])
+    db.execute("UPDATE conversations SET status='closed' WHERE id=? AND mode!='manager' AND NOT EXISTS "
+               "(SELECT 1 FROM escalations WHERE conv_id=? AND status='open')", (e['conv_id'], e['conv_id']))
     return {'status': 'closed'}
 
 
@@ -567,6 +571,7 @@ def close_stale(body: StaleIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
         db.execute("UPDATE escalations SET status='closed', manager=?, answer='Закрыто администратором: устарело', answered_at=? WHERE id=?",
                    (m['name'], db.now(), e['id']))
         team._log(e['conv_id'], e['id'], 'close', m['login'])
+        db.execute("UPDATE conversations SET status='closed' WHERE id=? AND mode!='manager'", (e['conv_id'],))
     team.dispatch()
     return {'closed': len(rs)}
 

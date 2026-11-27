@@ -161,7 +161,7 @@ docker compose build app && docker compose up -d app
 .venv/bin/python eval/rag_eval.py                    # RAGAS по базе знаний
 .venv/bin/python eval/catalog_rag_eval.py 6          # RAGAS по каталогу из фида
 .venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # сквозной тест реалтайма и оплаты (API)
-node scripts/regress/browser_regress.mjs                          # полный регресс в браузере, 36 проверок
+node scripts/regress/browser_regress.mjs                          # полный регресс в браузере, 37 проверок
 node scripts/regress/team_regress.mjs                             # команда: администратор, 2 менеджера, автоназначение, передача
 ```
 
@@ -174,7 +174,9 @@ node scripts/regress/team_regress.mjs                             # команд
 - `.env` не попадает в репозиторий. Меняйте пароли кабинета перед каждым показом.
 - Число попыток входа ограничено. Служебные пути вроде `/.env` возвращают 404.
 - На сервер заходите по SSH только с ключом, вход по паролю root отключите.
-- Чтобы удалить данные клиента, удалите строки по `conv_id` из `messages`, `pii`, `quotes` и `escalations`.
+- **Срок хранения ПДн из чата — 180 дней** (`PII_RETENTION_DAYS` в `main.py`). Раз в час фоновая задача удаляет таблицу соответствия меток (`pii`) у диалогов без активности дольше срока; переписка остаётся обезличенной (метки `[ТЕЛ_1]` и т. п.) для метрик и обучения агента.
+- Клиент сам удаляет свои данные кнопкой «Удалить историю и мои данные из чатов» (`POST /api/chat/forget`). История чатов клиента (`POST /api/chat/history`) хранится в его браузере 30 дней — это список id его диалогов, без аккаунта.
+- Чтобы удалить данные клиента полностью по запросу, удалите строки по `conv_id` из `messages`, `pii`, `quotes` и `escalations`.
 
 # 10. Типовые проблемы
 

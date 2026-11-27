@@ -192,7 +192,7 @@ def notify_new() -> int:
                       "WHERE l.id>? AND l.action='assign' ORDER BY l.id", (last_l,)):
         _set('log', lg['id'])
         if lg['created_at'] - lg['esc_at'] > 6 and lg['esc_id'] <= _state('esc', 0):
-            _broadcast(f'📥 Вам назначено обращение #{lg["esc_id"]} ({lg["category"]}) из очереди. '
+            _broadcast(f'📥 Обращение #{lg["esc_id"]} ({lg["category"]}) из очереди назначено: {team.name_of(lg["target"])}. '
                        'Ответьте реплаем или возьмите диалог.', lg['conv_id'], _buttons(lg['conv_id']), {lg['target']})
             sent += 1
     mxl = (db.one('SELECT max(id) AS v FROM team_log') or {}).get('v') or 0
