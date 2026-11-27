@@ -115,6 +115,10 @@ await say('requisites')
 await ask('Сколько стоит MDaemon Standard на 10 пользователей, продление на год?')
 await say('known', 1200)
 
+// 4б. Вопрос о покупке — ответ по базе знаний
+await ask('Мы вчера оплатили счёт. Когда придёт ключ?')
+await say('kb', 1000)
+
 // 5. Позвать оператора → кабинет в реальном времени
 await L.getByText('Позвать оператора').first().click()
 await page.waitForTimeout(1200)
@@ -135,19 +139,18 @@ await say('takeover')
 await R.getByRole('button', { name: /КП и счета/ }).click()
 await page.waitForTimeout(1500)
 await R.getByRole('button', { name: /Ссылка на оплату/ }).first().click().catch(() => {})
-await page.waitForTimeout(2500)
-await say('paylink')
+await page.waitForTimeout(1500)
 const href = await L.locator('.chat-body a[href*="/pay/"]').last().getAttribute('href').catch(() => null)
 if (href) {
   await page.evaluate(u => { document.getElementById('cl').src = u }, href)
   await L.getByRole('button', { name: /Оплатить/ }).waitFor({ timeout: 20000 }).catch(() => {})
   await page.waitForTimeout(1500)
   await L.getByRole('button', { name: /Оплатить/ }).click().catch(() => {})
-  await page.waitForTimeout(2000)
+  await page.waitForTimeout(1500)
   await R.getByRole('button', { name: /Метрики/ }).click(); await page.waitForTimeout(400)
-  await R.getByRole('button', { name: /КП и счета/ }).click(); await page.waitForTimeout(1500)
+  await R.getByRole('button', { name: /КП и счета/ }).click(); await page.waitForTimeout(2200)
 }
-await say('paid')
+await say('paylink', 300)
 
 // 7. Метрики и финал
 await R.getByRole('button', { name: /Метрики/ }).click()

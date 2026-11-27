@@ -115,7 +115,7 @@ cd .. && .venv/bin/python eval/run_eval.py --n 60      # нужны перепи
 
 ```bash
 cd scripts/video && npm install && node login.mjs   # вход в кабинет выполняет человек
-python3 make_audio.py && node record.mjs && python3 assemble.py   # → out/demo.mp4, out/demo.srt
+~/.venvs/tts/bin/python make_audio.py dmitri && node record.mjs && python3 assemble.py   # голос Piper → out/demo.mp4
 ```
 
 ## Переменные окружения

@@ -107,5 +107,5 @@
 
 - **Собственная наработка автора — methodAgent** (github.com/Fighter90/methodAgent, GPL-3.0). Из неё перенесены и адаптированы схема настроек, HTTP-клиент LLM, JWT-авторизация, многостадийный Dockerfile и каркас React + Vite. Остальное написано в спринте.
 - **Библиотеки:** FastAPI, Uvicorn, Pydantic, httpx, lxml, PyJWT, WeasyPrint, openpyxl, React, Vite, lucide-react, Caddy, SQLite, Playwright (запись демо).
-- **Модели и сервисы:** GigaChat 2 Max, YandexGPT Pro 5.1, ЮKassa MCP. Озвучка видео — синтез речи macOS (голос Milena).
+- **Модели и сервисы:** GigaChat 2 Max, YandexGPT Pro 5.1, ЮKassa MCP. Озвучка видео — нейросетевой синтез речи Piper (голос Dmitri).
 - **Ассистент разработки:** Claude Code.
