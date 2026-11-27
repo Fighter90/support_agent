@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsUp } from 'lucide-react'
-import { Send as TgIcon } from 'lucide-react'
+import { HelpCircle, Send as TgIcon } from 'lucide-react'
+import Help from './Help'
 import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram'
+type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram' | 'help'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
@@ -386,7 +387,7 @@ export default function Manager() {
   const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon]]
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon], ['help', 'Справка', HelpCircle]]
   return (
     <div className="mgr">
       <aside>
@@ -406,6 +407,7 @@ export default function Manager() {
         {tab === 'kb' && <Kb />}
         {tab === 'metrics' && <Metrics />}
         {tab === 'telegram' && <Telegram />}
+        {tab === 'help' && <Help />}
       </section>
     </div>
   )

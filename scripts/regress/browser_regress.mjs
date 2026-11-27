@@ -119,8 +119,8 @@ await mg.goto(`${BASE}/manager`)
 await step('Кабинет: вход сохранён, все разделы', mg, async () => {
   await mg.getByText('Живой чат').first().waitFor({ timeout: 15000 })
   const menu = await mg.locator('aside').innerText()
-  for (const t of ['Эскалации', 'Диалоги', 'КП и счета', 'Отзывы', 'База знаний', 'Метрики', 'Telegram']) must(menu.includes(t), 'нет раздела ' + t)
-  return '8 разделов'
+  for (const t of ['Эскалации', 'Диалоги', 'КП и счета', 'Отзывы', 'База знаний', 'Метрики', 'Telegram', 'Справка']) must(menu.includes(t), 'нет раздела ' + t)
+  return '9 разделов'
 })
 await step('Позвать оператора → диалог в кабинете в реальном времени', mg, async () => {
   await cl.getByText('Позвать оператора').first().click()
@@ -177,6 +177,29 @@ await step('Telegram: раздел подключения бота', mg, async (
   await mg.getByRole('button', { name: /Telegram/ }).click(); await mg.waitForTimeout(1500)
   const txt = await mg.locator('.mgr-main').innerText(); must(/SoftlineSupportBot|бот/i.test(txt), 'нет раздела бота')
   return /Подключить Telegram/.test(txt) ? 'бот включён' : 'бот не настроен (нет токена на сервере)'
+})
+await step('Telegram: бот включён, чат менеджера подключён', mg, async () => {
+  const txt = await mg.locator('.mgr-main').innerText()
+  must(/Подключить Telegram/.test(txt), 'бот не настроен'); must(/Отключить/.test(txt), 'нет подключённых чатов')
+  return 'бот включён, подключённых чатов: ' + (await mg.getByRole('button', { name: 'Отключить' }).count())
+})
+await step('Справка: 13 разделов, скриншоты загружаются', mg, async () => {
+  await mg.locator('aside button', { hasText: 'Справка' }).click(); await mg.waitForTimeout(2000)
+  const secs = await mg.locator('.help-sec').count(); must(secs >= 13, 'разделов справки ' + secs)
+  await mg.evaluate(async () => { for (const im of document.querySelectorAll('.help img')) { im.loading = 'eager'; im.scrollIntoView(); await new Promise(r => setTimeout(r, 150)) } })
+  await mg.waitForTimeout(1500)
+  const broken = await mg.evaluate(() => [...document.querySelectorAll('.help img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src))
+  must(broken.length === 0, 'не загрузились: ' + broken.join(', '))
+  const txt = await mg.locator('.help').innerText(); must(/Подключение личного Telegram/.test(txt) && /реплаем/.test(txt), 'нет инструкции по Telegram')
+  await mg.evaluate(() => document.getElementById('help-telegram').scrollIntoView())
+  return `${secs} разделов, ${await mg.locator('.help img').count()} скриншотов`
+})
+await step('Каталог: RAG по фиду store.softline.ru (API поиска)', cl, async () => {
+  const h = await (await fetch(`${BASE}/api/health`)).json()
+  must(h.catalog.offers > 130000, 'в каталоге мало позиций: ' + h.catalog.offers)
+  const r = await (await fetch(`${BASE}/api/catalog/search?q=${encodeURIComponent('астра линукс')}`)).json()
+  must(r.items.some(i => /Astra Linux/i.test(i.product)), 'не найден Astra Linux')
+  return `${h.catalog.offers} позиций, с ценой ${h.catalog.available_priced}, загружено ${h.catalog.loaded_at}; «астра линукс» → ${r.items[0].product}`
 })
 await step('Опрос в конце диалога (после 45 с тишины)', cl, async () => {
   await cl.bringToFront(); await cl.waitForTimeout(52000)

@@ -146,3 +146,14 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; } .unread { background: var(--red); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; }
 .paydemo { width: 400px; display: grid; gap: 10px; } .paydemo h2 { display: flex; gap: 8px; align-items: center; margin: 0; }
 .demo-badge { background: #FFF2CC; color: #8A5A00; font-weight: 700; font-size: 12px; padding: 6px 10px; border-radius: 8px; text-align: center; }
+
+/* Справка кабинета */
+.help { display: flex; flex-direction: column; gap: 14px; max-width: 1200px; }
+.help-toc ol { columns: 2; margin: 8px 0; }
+.help-toc a, .help a { color: var(--red); }
+.help-sec h3 { margin: 0 0 10px; color: var(--red); }
+.help-row { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+.help-row img { width: 100%; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+.help-text li { margin-bottom: 6px; line-height: 1.45; }
+.help-text code { background: #F3F3F5; padding: 1px 5px; border-radius: 4px; }
+@media (max-width: 900px) { .help-row { grid-template-columns: 1fr; } .help-toc ol { columns: 1; } }

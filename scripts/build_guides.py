@@ -32,6 +32,7 @@ tr:nth-child(even) td { background: #FAFAFB; }
 code { background: #F3F3F5; padding: 1px 4px; border-radius: 3px; font-size: 9.5pt; }
 pre { background: #F3F3F5; padding: 10px; border-left: 3px solid #A20D32; font-size: 9pt; white-space: pre-wrap; }
 a { color: #A20D32; }
+img { max-width: 100%; border: 1px solid #E5E5E7; border-radius: 6px; margin: 6px 0 10px; }
 """
 
 
@@ -57,10 +58,10 @@ def main() -> None:
     css.write_text(CSS, encoding='utf-8')
     for md in sorted(GUIDES.glob('*.md')):
         docx = md.with_suffix('.docx')
-        subprocess.run(['pandoc', str(md), '-o', str(docx), f'--reference-doc={ref}', '--toc', '--toc-depth=1',
+        subprocess.run(['pandoc', str(md), '-o', str(docx), f'--reference-doc={ref}', f'--resource-path={GUIDES}', '--toc', '--toc-depth=1',
                         '-M', 'toc-title=Содержание', '-M', 'lang=ru'], check=True)
         html = tmp / (md.stem + '.html')
-        subprocess.run(['pandoc', str(md), '-s', '-o', str(html), '--embed-resources', f'--css={css}', '-M', 'lang=ru'], check=True)
+        subprocess.run(['pandoc', str(md), '-s', '-o', str(html), '--embed-resources', f'--resource-path={GUIDES}', f'--css={css}', '-M', 'lang=ru'], check=True)
         pdf = md.with_suffix('.pdf')
         subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-pdf-header-footer', f'--print-to-pdf={pdf}', html.as_uri()],
                        check=True, capture_output=True)

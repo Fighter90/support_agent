@@ -29,6 +29,7 @@ GREETING = ('Здравствуйте! Я ИИ-консультант Softline. 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logging.basicConfig(level='INFO', format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+    logging.getLogger('httpx').setLevel(logging.WARNING)  # URL запросов к Telegram содержит токен бота — не пишем их в журнал
     db.init_db()
     n = kb.load_base()
     logger.info('База знаний: %d статей; каталог: %s; модели: %s', n, catalog.stats(), [p.name for p in llm.chain()])

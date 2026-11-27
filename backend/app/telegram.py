@@ -196,7 +196,7 @@ def _poll() -> None:
                 except Exception:  # noqa: BLE001
                     logger.exception('Telegram: ошибка обработки обновления')
         except Exception as e:  # noqa: BLE001 — сеть/таймаут: пауза и повтор
-            logger.warning('Telegram getUpdates: %s', e)
+            logger.warning('Telegram getUpdates: %s', str(e).replace(token(), '***'))
             time.sleep(5)
 
 
