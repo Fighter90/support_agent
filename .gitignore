@@ -12,3 +12,4 @@ data/*.tmp
 data/feed.download
 data/quotes/
 .DS_Store
+.preview/

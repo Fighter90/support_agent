@@ -160,7 +160,7 @@ def ingest(src: str | None = None) -> dict[str, Any]:
     stats = {
         'offers': n,
         'categories': len(cats),
-        'available_priced': con.execute('SELECT count(*) FROM offers WHERE available=1 AND price>0').fetchone()[0],
+        'available_priced': con.execute('SELECT count(*) FROM offers WHERE price>0').fetchone()[0],  # правило заказчика: есть цена — в наличии
         'domestic': con.execute("SELECT count(*) FROM offers WHERE registry<>''").fetchone()[0],
         'loaded_at': time.strftime('%Y-%m-%d %H:%M:%S'),
         'seconds': round(time.time() - t0, 1),
@@ -199,7 +199,7 @@ def stats() -> dict[str, Any]:
         return {}
 
 
-_WORD = re.compile(r'[\w\-\.]+', re.UNICODE)
+_WORD = re.compile(r'[\w\.]+', re.UNICODE)
 _STOP = {'для', 'на', 'и', 'в', 'с', 'по', 'нужен', 'нужна', 'нужно', 'купить', 'лицензия', 'лицензии', 'хочу', 'есть',
          'ли', 'а', 'или', 'как', 'мне', 'нам', 'под', 'от', 'до', 'шт', 'the', 'for', 'of', 'сколько', 'стоит',
          'можно', 'какой', 'какая', 'какие', 'что', 'это', 'ваш', 'вас', 'у', 'не', 'подскажите', 'пожалуйста',
@@ -225,7 +225,7 @@ def _terms(query: str) -> list[str]:
         if len(w) < 2 or w in _STOP:
             continue
         if re.fullmatch(r'[а-яё]+', w) and len(w) > 4:
-            w = w[: max(4, len(w) - 2)]  # грубый стемминг: «антивирусы» → «антивиру*»
+            w = w[: max(4, len(w) - 3)]  # грубый стемминг: «антивирусы» → «антивир*», «офисный» → «офис*»
         out.append('"' + w.replace('"', '') + '"*')
     return out[:8]
 
@@ -245,7 +245,9 @@ def _where(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     f = filters or {}
     sql, args = [], []
     if f.get('only_available', True):
-        sql.append('o.available=1')
+        # Правило заказчика (встреча): «товар с ценой — в наличии, без цены — запрос цены через менеджера».
+        # Флаг available в фиде у ~11 тыс. позиций с ценой равен false, поэтому наличие определяем по цене.
+        sql.append('o.price>0')
     if f.get('only_priced'):
         sql.append('o.price>0')
     if f.get('only_domestic'):
@@ -266,10 +268,63 @@ def _where(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     return (' AND ' + ' AND '.join(sql)) if sql else '', args
 
 
+def _add(results: dict[int, dict[str, Any]], r: sqlite3.Row, limit: int) -> None:
+    """Добавить строку фида в выдачу, сгруппировав по продуктовой линейке."""
+    g = r['group_id'] or r['id']
+    if g not in results:
+        if len(results) >= limit:
+            return
+        results[g] = {
+            'group_id': g, 'product': r['product'] or r['name'], 'vendor': r['vendor'],
+            'category': ' / '.join(r['category_path'].split(' / ')[-3:-1]),
+            'url': r['url'], 'domestic': is_domestic(r['vendor'], r['registry'], r['category_path']),
+            'registry': (f"запись в реестре отечественного ПО № {r['registry']}" if r['registry'] else
+                         ('российский вендор; номер записи в реестре в каталоге не указан' if is_domestic(r['vendor'], '', r['category_path']) else '')),
+            'matched_offers': [], 'prices': [],
+        }
+    item = results[g]
+    if len(item['matched_offers']) < 3:
+        item['matched_offers'].append({'offer_id': r['id'], 'name': r['name'], 'price_rub': r['price'] or None})
+    if r['price']:
+        item['prices'].append(r['price'])
+
+
 _URL_ID = re.compile(r'store\.softline\.ru/[^\s]*?-(\d{3,9})/?')
 
 
+# Сценарий «клиент не знает продукт»: класс ПО из запроса → ведущие линейки этого класса в каталоге Softline.
+# Нужен, потому что названия продуктов часто не содержат слов клиента («офисный пакет» ≠ «МойОфис»).
+INTENTS = [
+    (r'офисн\w* (пакет|програм)|офис(?!\w)|редактор\w* документ', 'МойОфис Стандартный|Р7-Офис'),
+    (r'(операционн\w* систем|(?<!\w)ос(?!\w))', 'Astra Linux Special Edition|Операционная система РЕД ОС|Альт Рабочая станция'),
+    (r'антивирус|защит\w* (компьютер|рабоч|пк|конечн)', 'Kaspersky Endpoint Security для бизнеса|Dr.Web Desktop Security Suite'),
+    (r'резервн\w* копир|бэкап|backup', 'Кибер Бэкап|RuBackup'),
+    (r'несанкционирован|(?<!\w)нсд(?!\w)|сзи', 'Secret Net Studio|Dallas Lock'),
+    (r'мониторинг\w* (сет|сервер|инфраструкт)', 'Astra Monitoring|10-Страйк Мониторинг Сети|OpManager'),
+    (r'видеоконференц|(?<!\w)вкс(?!\w)', 'TrueConf|Контур Толк'),
+    (r'3d|трехмерн|трёхмерн|конструктор|чертеж|чертёж', 'КОМПАС-3D|nanoCAD'),
+]
+
+
 def search(query: str, filters: dict[str, Any] | None = None, limit: int = 8) -> list[dict[str, Any]]:
+    """Поиск с учётом класса ПО (INTENTS): сначала ведущие линейки класса, затем обычная выдача по словам запроса."""
+    low = query.lower()
+    extra: list[dict[str, Any]] = []
+    for pat, words in INTENTS:
+        if re.search(pat, low):
+            for phrase in words.split('|'):
+                extra += [r for r in _search(phrase, filters, 1) if r not in extra]
+    base = _search(query, filters, limit)
+    seen, out = set(), []
+    exact = base[:1] if base and re.search(r'(?<!\w)' + re.escape(base[0]['product'].lower()) + r'(?!\w)', low) else []
+    for r in [*exact, *extra[:4], *base]:  # продукт, названный клиентом, остаётся первым
+        if r['group_id'] not in seen:
+            seen.add(r['group_id'])
+            out.append(r)
+    return out[:limit]
+
+
+def _search(query: str, filters: dict[str, Any] | None = None, limit: int = 8, joiner_only: str = '') -> list[dict[str, Any]]:
     """Продуктовые линейки (группы) по запросу: название, вендор, класс, диапазон цен, пример предложений.
     Ссылка на карточку store.softline.ru распознаётся по артикулу в конце URL (…-413411/)."""
     m = _URL_ID.search(query)
@@ -284,40 +339,41 @@ def search(query: str, filters: dict[str, Any] | None = None, limit: int = 8) ->
     where, args = _where(filters)
     results: dict[int, dict[str, Any]] = {}
     with _db() as c:
-        for joiner in (' AND ', ' OR '):
+        # 1) Клиент знает продукт: точное название предложения (часто копируют с сайта, в кавычках) — первым результатом
+        exact: list[sqlite3.Row] = []
+        if m:  # ссылка на карточку: ровно этот артикул — первым (одноимённых предложений в фиде много)
+            exact = c.execute('SELECT o.* FROM offers o WHERE o.id=?', (int(m.group(1)),)).fetchall()
+        for cand in ([] if exact else [*re.findall(r'[«"“]([^»"”]{6,300})[»"”]', query), query.strip(' ?!.')]):
+            exact = c.execute('SELECT o.* FROM offers o WHERE lower(o.name) = lower(?) LIMIT 3', (cand.strip(),)).fetchall()
+            if not exact:  # название продуктовой линейки целиком («Сколько стоит Faronics Campus Affairs?», «… BIMIT?»)
+                low = cand.lower()
+                exact = [r for r in c.execute('SELECT o.* FROM offers o WHERE instr(?, lower(o.product)) > 0 AND length(o.product) >= 4 '
+                                              'ORDER BY length(o.product) DESC, (o.price=0) LIMIT 20', (low,)).fetchall()
+                         if re.search(r'(?<!\w)' + re.escape(r['product'].lower()) + r'(?!\w)', low)][:1]
+            if exact:
+                break
+        for r in exact:
+            _add(results, r, limit + 1)
+        if m and exact:  # подсказка агенту: это ровно та позиция, на которую дал ссылку клиент
+            results[exact[0]['group_id'] or exact[0]['id']]['matched_offers'][0]['from_client_link'] = True
+        for joiner in ((joiner_only,) if joiner_only else (' AND ', ' OR ')):
             if len(results) >= limit:
                 break
             q = joiner.join(terms)
             sql = f"""SELECT o.*, bm25(offers_fts, 6.0, 4.0, 5.0, 2.0, 1.0) AS rank FROM offers_fts
                       JOIN offers o ON o.id = offers_fts.rowid
                       WHERE offers_fts MATCH ? {where}
-                      ORDER BY rank - (o.price>0)*0.5 LIMIT 400"""
+                      ORDER BY rank - (o.price>0)*0.5 + (o.group_id=0)*3 LIMIT 400"""
             try:
                 found = c.execute(sql, [q, *args]).fetchall()
             except sqlite3.OperationalError:
                 continue
             for r in found:
-                g = r['group_id'] or r['id']
-                if g not in results:
-                    if len(results) >= limit:
-                        continue
-                    results[g] = {
-                        'group_id': g, 'product': r['product'] or r['name'], 'vendor': r['vendor'],
-                        'category': ' / '.join(r['category_path'].split(' / ')[-3:-1]),
-                        'url': r['url'], 'domestic': is_domestic(r['vendor'], r['registry'], r['category_path']),
-                        'registry': (f"запись в реестре отечественного ПО № {r['registry']}" if r['registry'] else
-                                     ('российский вендор; номер записи в реестре в каталоге не указан' if is_domestic(r['vendor'], '', r['category_path']) else '')),
-                        'matched_offers': [], 'prices': [],
-                    }
-                item = results[g]
-                if len(item['matched_offers']) < 3:
-                    item['matched_offers'].append({'offer_id': r['id'], 'name': r['name'], 'price_rub': r['price'] or None})
-                if r['price']:
-                    item['prices'].append(r['price'])
+                _add(results, r, limit)
         for item in results.values():
-            agg = c.execute('SELECT count(*), sum(available), min(CASE WHEN price>0 AND available=1 THEN price END), '
-                            'max(CASE WHEN price>0 AND available=1 THEN price END) FROM offers WHERE group_id=?',
-                            (item['group_id'],)).fetchone()
+            agg = c.execute('SELECT count(*), sum(price>0), min(CASE WHEN price>0 THEN price END), '
+                            'max(CASE WHEN price>0 THEN price END) FROM offers WHERE group_id=? OR (group_id=0 AND id=?)',
+                            (item['group_id'], item['group_id'])).fetchone()
             item['variants_total'], item['variants_available'] = agg[0], agg[1] or 0
             item['price_from_rub'], item['price_to_rub'] = agg[2], agg[3]
             item.pop('prices')
@@ -345,7 +401,7 @@ def variants(group_id: int | None = None, offer_id: int | None = None, filters: 
                 where += ' AND o.name LIKE ?'
                 args.append('%' + t.strip('"*') + '%')
         rs = c.execute(f'SELECT o.* FROM offers o WHERE o.group_id=? {where} '
-                       "ORDER BY o.available DESC, (o.price=0), CASE WHEN o.users_max<>'' THEN CAST(o.users_max AS INTEGER) END, o.price LIMIT ?", [group_id, *args, limit]).fetchall()
+                       "ORDER BY (o.price=0), CASE WHEN o.users_max<>'' THEN CAST(o.users_max AS INTEGER) END, o.price LIMIT ?", [group_id, *args, limit]).fetchall()
         total = c.execute('SELECT count(*), max(product), max(vendor) FROM offers WHERE group_id=?', (group_id,)).fetchone()
         facets: dict[str, list[str]] = {}
         for col in ('org_type', 'user_type', 'term', 'license_type', 'version'):
@@ -357,7 +413,7 @@ def variants(group_id: int | None = None, offer_id: int | None = None, filters: 
         d = {k: r[k] for k in VARIANT_COLS if r[k] not in ('', None)}
         d['offer_id'] = d.pop('id')
         d['price_rub'] = d.pop('price') or None
-        d['available'] = bool(r['available'])
+        d['available'] = bool(r['price'])
         if not d['price_rub']:
             d['price_note'] = 'цена по запросу у менеджера'
         out.append(d)

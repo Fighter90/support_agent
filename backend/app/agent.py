@@ -281,7 +281,7 @@ def reply(conv_id: str, user_text: str) -> dict[str, Any]:
             payload = json.dumps(result, ensure_ascii=False, default=str)
             ctx['tools'].append({'tool': tc.name, 'args': tc.arguments})
             db.execute('INSERT INTO tool_calls (conv_id, tool, args, result, ms, created_at) VALUES (?,?,?,?,?,?)',
-                       (conv_id, tc.name, db.dumps(tc.arguments), payload[:4000], int((time.time() - t1) * 1000), db.now()))
+                       (conv_id, tc.name, db.dumps(tc.arguments), payload[:20000], int((time.time() - t1) * 1000), db.now()))
             messages.append({'role': 'assistant', 'content': r.text or '', 'tool_calls': [{'id': tc.id, 'name': tc.name, 'arguments': tc.arguments}]})
             messages.append({'role': 'tool', 'tool_call_id': tc.id, 'name': tc.name, 'content': payload[:9000]})
     if not text:
