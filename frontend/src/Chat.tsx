@@ -79,7 +79,7 @@ export default function Chat() {
   const [survey, setSurvey] = useState<{ resolved?: boolean; score?: number; comment: string; sent: boolean }>({ comment: '', sent: false })
   const filledQuotes = new Set(msgs.filter(x => x.meta?.quote && x.meta.quote.status !== 'awaiting_requisites').map(x => x.meta.quote!.quote_id))
   // Опрос показываем, только когда разговор похоже завершён: была оплата, или клиент молчит 45 с после ответа
-  // (3 мин, если ассистент задал вопрос), и нет незаполненной формы реквизитов. Пока диалог идёт — не мешаем.
+  // (1,5 мин, если ассистент задал уточняющий вопрос), и нет незаполненной формы реквизитов. Пока диалог идёт — не мешаем.
   const lastChange = useRef(Date.now())
   const [clock, setClock] = useState(Date.now())
   useEffect(() => { lastChange.current = Date.now() }, [msgs.length, text])
@@ -87,9 +87,11 @@ export default function Chat() {
   const lastMsg = msgs[msgs.length - 1]
   const paid = msgs.some(x => x.role === 'system' && /Оплата .*получена/.test(x.content))
   const pendingForm = msgs.some(x => x.meta?.quote?.status === 'awaiting_requisites' && !filledQuotes.has(x.meta.quote.quote_id))
-  const asksQuestion = !!lastMsg && /\?\s*$/.test(lastMsg.content.trim()) && lastMsg.role === 'assistant'
+  // Вежливое «Нужна помощь с оформлением?» в конце ответа — не уточняющий вопрос: опрос можно показывать через 45 с
+  const closing = /(нужна|нужно|требуется)[^?]{0,40}помощь|остал[ии]сь[^?]{0,20}вопрос|ч[её]м ещ[её]|есть ли (ещё|еще|другие) вопрос|могу ли (ещё|еще) помочь/i
+  const asksQuestion = !!lastMsg && lastMsg.role === 'assistant' && /\?\s*$/.test(lastMsg.content.trim()) && !closing.test(lastMsg.content.slice(-120))
   const answered = msgs.filter(x => x.role !== 'user').length >= 2 && !!lastMsg && lastMsg.role !== 'user' && !pendingForm && !mgrMode
-    && (paid || clock - lastChange.current > (asksQuestion ? 180000 : 45000))  // на встречный вопрос ассистента ждём дольше
+    && (paid || clock - lastChange.current > (asksQuestion ? 90000 : 45000))  // на встречный вопрос ассистента ждём дольше
 
   const load = async (id: string, after = 0) => {
     const d = await api<{ messages: Message[] }>(`/api/chat/${id}?after=${after}`)

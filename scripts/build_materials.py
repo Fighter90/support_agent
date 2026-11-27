@@ -23,6 +23,7 @@ ITEMS = [  # (файл в public, источник, заголовок, опис
     ('demo.mp4', VIDEO / 'demo.mp4', 'Демонстрационное видео', '2:58, один дубль на стенде methodagent.ru; ускорено только ожидание ответа модели; озвучка и субтитры'),
     ('demo.srt', VIDEO / 'demo.srt', 'Субтитры к видео (SRT)', 'Те же субтитры отдельным файлом'),
     ('cost.xlsx', DOCS / 'cost.xlsx', 'Расчёт стоимости эксплуатации', 'Шаблон организатора: стоимость одного запроса, токены по шагам, экономика, сравнение моделей'),
+    ('jury_guide.pdf', None, 'Памятка для жюри: как проверить за 10 минут', 'Обязательная часть, цикл «менеджер ответил → агент запомнил», скидки, КП и оплата, кабинет'),
     ('description.pdf', None, 'Описание продукта', 'Текст для формы сдачи'),
     ('solution.pdf', None, 'Описание решения', 'Требования, архитектура, 152-ФЗ, выбор моделей, данные, качество (RAGAS), запуск'),
     ('presentation.pdf', DOCS / 'presentation' / 'presentation.pdf', 'Презентация', '9 слайдов'),
@@ -61,6 +62,7 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     md_pdf(DOCS / 'description.md', PUB / 'description.pdf', tmp)
     md_pdf(DOCS / 'solution.md', PUB / 'solution.pdf', tmp)
+    md_pdf(DOCS / 'jury_guide.md', PUB / 'jury_guide.pdf', tmp)
     reg = ROOT / 'scripts' / 'regress' / 'out'
     if (reg / 'report.json').exists():  # отчёт регресса в браузере со скриншотами
         dst = PUB / 'regress'

@@ -53,7 +53,7 @@ code { font-size: 14px; background: #fff; padding: 1px 5px; border-radius: 4px; 
   <h2>Проблема и эффект</h2>
   <div class="row">
     <div class="col card"><div class="big">~2 <small>мин</small></div><div class="lbl">сейчас ждёт клиент ответа менеджера; 6–8 человек обслуживают чат и почту</div></div>
-    <div class="col card"><div class="big">4 <small>с</small></div><div class="lbl">медиана ответа агента, круглосуточно (регресс на 51 реальном обращении)</div></div>
+    <div class="col card"><div class="big">4 <small>с</small></div><div class="lbl">первый ответ агента (медиана), круглосуточно; цель менеджера по эскалации — 2 мин</div></div>
     <div class="col card"><div class="big">~82%</div><div class="lbl">обращений агент закрывает сам, остальные — менеджеру с готовым резюме</div></div>
     <div class="col card"><div class="big">30 <small>мин</small></div><div class="lbl">менеджера экономится на каждом закрытом обращении (оценка заказчика)</div></div>
   </div>
@@ -73,11 +73,11 @@ code { font-size: 14px; background: #fff; padding: 1px 5px; border-radius: 4px; 
     <div class="step"><b>Вопросы о покупке</b>НДС, оплата, доставка, ключи, закрывающие документы, личный кабинет — ответ по базе знаний</div>
   </div>
   <div class="flow" style="margin-top:16px">
-    <div class="step"><b>КП и счёт</b>Шаблон ПАО «Софтлайн», НДС 22%, ПО из реестра без НДС; реквизиты — в форме мимо модели</div>
+    <div class="step"><b>КП и счёт — сразу</b>Без проверки менеджером; шаблон ПАО «Софтлайн», НДС 22%; реквизиты — в форме мимо модели</div>
     <div class="arrow">→</div>
     <div class="step"><b>Оплата</b>ЮKassa через MCP-сервер: ссылка на оплату в чате (на стенде — демо-режим)</div>
     <div class="arrow">→</div>
-    <div class="step"><b>Менеджер</b>Скидку до 5% даёт агент; больше, тендер, «цена по запросу», низкая уверенность или кнопка «Позвать оператора» — менеджеру</div>
+    <div class="step"><b>Скидки и менеджер</b>Агент сам предлагает до 5% и акции из таблицы менеджера; отсрочка, тендер, «цена по запросу», кнопка «Позвать оператора» — менеджеру</div>
   </div>
   <div class="pg">3</div>
 </section>
@@ -162,6 +162,7 @@ code { font-size: 14px; background: #fff; padding: 1px 5px; border-radius: 4px; 
         <li>Отзывы 👎 → база знаний; 👍 → примеры для агента</li>
         <li>Метрики: CSAT, доля решённых, токены и стоимость</li>
         <li>Telegram-бот @SoftlineSupportBot: эскалации с кнопками, ответ клиенту реплаем (только обезличенный текст)</li>
+        <li>«Скидки»: лимит агента и таблица акций; регламент ответа — таймер, напоминание, метрики</li>
         <li>«Справка»: работа с кабинетом по шагам со скриншотами</li>
       </ul>
     </div>

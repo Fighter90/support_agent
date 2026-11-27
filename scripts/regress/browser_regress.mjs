@@ -132,7 +132,7 @@ await step('Ответ на уточнение и российский анал�
 await step('Агент сам называет акцию; счёт выдан сразу со скидкой 7%, PDF', cl, async () => {
   const offer = await ask('Сколько стоит Kaspersky Endpoint Security для бизнеса Стандартный на 50 ПК на 1 год, новая лицензия?')
   must(/7\s?%|скидк|акци/i.test(offer), 'агент не сказал клиенту об акции')
-  await ask('Берём. Выставьте счёт')
+  await ask('Берём Kaspersky Endpoint Security для бизнеса Стандартный на 50 ПК на 1 год, новая лицензия. Выставьте счёт')
   const f = cl.locator('.quote-form').last(); await f.waitFor({ timeout: 20000 })
   await f.getByPlaceholder('Название организации').fill('ООО «Ромашка»')
   await f.getByPlaceholder('ИНН').fill('123'); await f.locator('button').click(); await cl.waitForTimeout(1200)
