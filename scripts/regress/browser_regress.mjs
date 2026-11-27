@@ -75,7 +75,10 @@ await step('Скидки: настройки, изменение, выключе
   must(/от 0 до 15/.test(await mg.locator('.mgr-main').innerText()), 'нет проверки лимита > 15%')
   await sets.nth(0).fill('5'); await sets.nth(1).fill('2'); await mg.getByRole('button', { name: 'Сохранить' }).first().click(); await mg.waitForTimeout(1000)
   must(/Настройки сохранены/.test(await mg.locator('.mgr-main').innerText()), 'настройки не сохранились')
-  // временное правило: добавить → изменить → выключить → удалить
+  // временное правило: добавить → изменить → выключить → удалить (остатки прерванных прогонов сначала убираем)
+  while (await mg.locator('tr', { hasText: 'Регресс-тест' }).count()) {
+    await mg.locator('tr', { hasText: 'Регресс-тест' }).first().getByRole('button', { name: 'Удалить' }).click(); await mg.waitForTimeout(800)
+  }
   await mg.locator('.row-form').nth(1).locator('select').first().selectOption('offer'); await mg.locator('.row-form').nth(1).locator('input').first().fill('4986')
   await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('3'); await mg.getByPlaceholder('Например: Неделя Kaspersky').fill('Регресс-тест')
   await mg.getByRole('button', { name: 'Добавить' }).click(); await mg.waitForTimeout(1200)

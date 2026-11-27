@@ -13,7 +13,7 @@ services:
       - ./data/kb:/app/data/kb:ro
     expose:
       - "8000"
-    mem_limit: 2g
+    mem_limit: 4g  # сервер 4 vCPU / 8 ГБ; загрузка фида идёт в отдельном процессе
 
   caddy:
     image: caddy:2-alpine

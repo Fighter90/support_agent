@@ -23,7 +23,7 @@ subtitle: "Команда и роли, развёртывание, настро�
 | Оплата | ЮKassa MCP (`https://mcp.yookassa.ru`) | Создание и проверка платежей |
 | caddy | Caddy 2 | HTTPS (Let's Encrypt), обратный прокси, WebSocket |
 
-Минимальные требования к серверу: 1 vCPU, 1 ГБ RAM и 2 ГБ swap, 5 ГБ диска, Ubuntu 22.04 или новее, Docker и Docker Compose.
+Сервер стенда: 4 vCPU, 8 ГБ RAM, 80 ГБ NVMe (Timeweb Cloud MSK). Минимум для пилота — 2 vCPU и 4 ГБ RAM; Ubuntu 22.04 или новее, Docker и Docker Compose. Контейнеру приложения выделено до 4 ГБ (`mem_limit` в `docker-compose.yml`).
 
 # 1а. Команда: администратор и менеджеры
 
@@ -120,7 +120,7 @@ docker compose build app && docker compose up -d app
 ```
 
 - **Данные** (`data/runtime`: базы и PDF) лежат в томе Docker и при обновлении сохраняются.
-- **Каталог (RAG по товарам).** Фид `https://store.softline.ru/feeds/Mindbox.yml.gz` загружается при старте и затем автоматически раз в сутки. Новый индекс строится во временном файле и подменяет старый атомарно, так что агент не останавливается. Принудительное обновление: `POST /api/manager/catalog/reload` с токеном менеджера.
+- **Каталог (RAG по товарам).** Фид `https://store.softline.ru/feeds/Mindbox.yml.gz` загружается при старте и затем автоматически раз в сутки — **в отдельном процессе** (`catalog.ingest_isolated`): разбор ~300 МБ XML занимает сотни мегабайт, и после загрузки эта память сразу освобождается, веб-сервер остаётся лёгким (~70 МБ). Новый индекс строится во временном файле и подменяет старый атомарно, так что агент не останавливается. Принудительное обновление: `POST /api/manager/catalog/reload` с токеном менеджера.
 - **База знаний (RAG по статьям).** Статьи из `data/kb/*.md` загружаются при старте. Статьи, добавленные менеджерами из эскалаций и отзывов, хранятся в `app.db` и начинают работать сразу.
 
 # 5. Подключение оплаты ЮKassa (MCP-сервер)
@@ -175,7 +175,7 @@ docker compose build app && docker compose up -d app
 .venv/bin/python eval/rag_eval.py                    # RAGAS по базе знаний
 .venv/bin/python eval/catalog_rag_eval.py 6          # RAGAS по каталогу из фида
 .venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # сквозной тест реалтайма и оплаты (API)
-node scripts/regress/browser_regress.mjs                          # полный регресс в браузере, 37 проверок
+node scripts/regress/browser_regress.mjs                          # полный регресс в браузере, 39 проверок
 node scripts/regress/team_regress.mjs                             # команда: администратор, 2 менеджера, автоназначение, передача
 ```
 
@@ -208,4 +208,5 @@ node scripts/regress/team_regress.mjs                             # команд
 | В каталоге 0 позиций | Нет доступа к фиду: проверьте сеть и вызовите обновление каталога |
 | PDF не формируется | Нет библиотек pango: используйте Docker-образ |
 | Бот молчит | Проверьте `"telegram": true` в `/api/health` и подключение чата в разделе «Telegram»; в журнале ищите `Telegram getUpdates` |
+| 504 Gateway Timeout | Приложению не хватает памяти, оно ушло в swap. Проверьте `free -m` и `docker stats`; перезапуск — `docker compose restart app`. С версии от 28.11 фид разбирается в отдельном процессе, и память после загрузки освобождается |
 | Кабинет не обновляется сам | Прокси не пропускает WebSocket. Caddy пропускает его без настроек, в nginx добавьте заголовки `Upgrade` и `Connection` |

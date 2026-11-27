@@ -123,3 +123,12 @@ def test_vat_label_from_card():
     assert card.vat_from_text('Цена 1 000 ₽ Без НДС') == 0
     assert card.vat_from_text('Описание продукта') is None
     assert quotes._vat(3194.0, False, 22) == round(3194 * 22 / 122, 2) and quotes._vat(1000.0, False, 0) == 0.0
+
+
+def test_catalog_ingest_in_separate_process():
+    """Фид разбирается в отдельном процессе — память не остаётся в веб-сервере; веб-сервер видит новый каталог."""
+    from app import catalog
+    from app.config import ROOT_DIR
+
+    st = catalog.ingest_isolated(str(ROOT_DIR / 'backend' / 'tests' / 'feed_sample.xml'))
+    assert st['offers'] == 4 and catalog.stats()['offers'] == 4

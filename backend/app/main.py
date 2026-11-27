@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
+
+# В slim-образе нет /etc/mime.types: без этого DOCX/XLSX из /materials отдаются как text/plain и открываются как текст
+for _ext, _type in (('.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+                    ('.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                    ('.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'),
+                    ('.srt', 'application/x-subrip'), ('.vtt', 'text/vtt'), ('.mp4', 'video/mp4'), ('.pdf', 'application/pdf')):
+    mimetypes.add_type(_type, _ext)
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -45,7 +53,7 @@ async def lifespan(_: FastAPI):
             st = catalog.stats()
             if not st.get('offers') or time.time() - get_settings().catalog_db.stat().st_mtime > 86400:
                 try:
-                    catalog.ingest()
+                    catalog.ingest_isolated()  # отдельный процесс — память фида не остаётся в веб-сервере
                 except Exception:  # noqa: BLE001 — ошибка загрузки не роняет сервис, работаем на прежнем каталоге
                     logger.exception('Не удалось обновить каталог из фида')
             time.sleep(3600)
@@ -895,7 +903,7 @@ def discounts_preview(q: str = Query('', max_length=200), m: dict = Depends(auth
 
 @app.post('/api/manager/catalog/reload')
 async def reload_catalog(m: dict = Depends(auth.manager)) -> dict[str, Any]:
-    return await run_in_threadpool(catalog.ingest, None)
+    return await run_in_threadpool(catalog.ingest_isolated, None)
 
 
 # ------------------------------------------------------------------ материалы для жюри (публичная папка без авторизации)

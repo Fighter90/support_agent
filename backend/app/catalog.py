@@ -444,3 +444,19 @@ def get_offers(ids: list[int]) -> dict[int, dict[str, Any]]:
 
 def known_prices(ids: list[int]) -> set[float]:
     return {float(o['price']) for o in get_offers(ids).values() if o['price']}
+
+
+def ingest_isolated(src: str | None = None, timeout: int = 1800) -> dict[str, Any]:
+    """Пересборка каталога в отдельном процессе: разбор фида (~300 МБ XML) занимает сотни мегабайт памяти,
+    а Python не возвращает её системе. В отдельном процессе память освобождается сразу после загрузки,
+    веб-сервер остаётся лёгким (иначе он уходит в swap и отвечает 504)."""
+    import json as _json
+    import subprocess
+    import sys
+
+    code = 'import json,sys; from app import catalog; print(json.dumps(catalog.ingest(sys.argv[1] or None), ensure_ascii=False, default=str))'
+    r = subprocess.run([sys.executable, '-c', code, src or ''], capture_output=True, text=True, timeout=timeout,
+                       cwd=str(Path(__file__).resolve().parents[1]))
+    if r.returncode != 0:
+        raise RuntimeError(f'Загрузка каталога завершилась с ошибкой: {r.stderr[-500:]}')
+    return _json.loads(r.stdout.strip().splitlines()[-1])
