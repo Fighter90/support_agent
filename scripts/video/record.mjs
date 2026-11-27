@@ -132,6 +132,7 @@ await say('kb', 300)
 
 // 5. Позвать оператора → автоназначение в команде → Telegram
 await R.locator('aside button', { hasText: 'Команда' }).click()
+const sentBefore = (await adminApi('/api/manager/telegram')).outbox?.sent || 0
 await L.getByText('Позвать оператора').first().click()
 await page.waitForTimeout(1200)
 await say('operator', 200)
@@ -139,6 +140,12 @@ await R.locator('aside button', { hasText: 'Эскалации' }).click()
 await R.locator('.seg button', { hasText: 'Все новые' }).click().catch(() => {})
 await page.waitForTimeout(600)
 await say('queue', 200)
+// в Telegram переходим, когда бот уже отправил уведомление (связь с api.telegram.org из РФ медленная) — без пустых кадров
+for (let i = 0; i < 60; i++) {
+  const o = (await adminApi('/api/manager/telegram')).outbox || {}
+  if ((o.sent || 0) > sentBefore && !o.pending) break
+  await page.waitForTimeout(1000)
+}
 
 // 6. Настоящий Telegram менеджера: эскалация от бота, ответ реплаем
 const sent = Date.now()

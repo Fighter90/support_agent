@@ -212,9 +212,10 @@ def unverified_prices(text: str, known: set[float]) -> list[str]:
 
 # ------------------------------------------------------------------ диалог
 
-def new_conversation(page_url: str = '') -> str:
+def new_conversation(page_url: str = '', model: str = '') -> str:
     cid = db.new_id('c')
-    db.execute('INSERT INTO conversations (id, created_at, updated_at, page_url) VALUES (?,?,?,?)', (cid, db.now(), db.now(), page_url[:300]))
+    db.execute('INSERT INTO conversations (id, created_at, updated_at, page_url, llm) VALUES (?,?,?,?,?)',
+               (cid, db.now(), db.now(), page_url[:300], model if model in ('openweights', 'gigachat', 'yandex') else ''))
     return cid
 
 
@@ -255,7 +256,8 @@ def _known_prices(conv_id: str) -> set[float]:
 def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any], tools: list[dict[str, Any]] | None = None) -> llm.LLMResult:
     s = get_settings()
     last_err = ''
-    for p in llm.chain():
+    conv = db.one('SELECT llm FROM conversations WHERE id=?', (conv_id,)) or {}
+    for p in llm.chain(conv.get('llm') or ''):
         try:
             r = p.chat(messages, TOOLS, tool_choice='none' if tools == [] else 'auto')
         except Exception as e:  # noqa: BLE001 — любая ошибка модели → резервная модель
@@ -265,7 +267,7 @@ def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any], too
                        'VALUES (?,?,?,?,?,?,?,?,?,?)', (conv_id, p.name, p.model, 0, 0, 0, 0, 0, last_err, db.now()))
             ctx['degraded'] = True
             continue
-        price = {'gigachat': s.gigachat_price_per_1k, 'yandex': s.yandex_price_per_1k}.get(p.name, 0.0)
+        price = {'gigachat': s.gigachat_price_per_1k, 'yandex': s.yandex_price_per_1k, 'openweights': s.openweights_price_per_1k}.get(p.name, 0.0)
         cost = round((r.tokens_in + r.tokens_out) / 1000 * price, 4)
         ctx['cost_rub'] += cost
         ctx['tokens'] += r.tokens_in + r.tokens_out

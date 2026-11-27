@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     # GigaChat 2 Max — developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs; YandexGPT Pro 5.1 — aistudio.yandex.ru/docs/ru/ai-studio/pricing
     gigachat_price_per_1k: float = 0.65
     yandex_price_per_1k: float = 0.8
+    # --- Модель с открытыми весами (путь внедрения в контур Softline): любой OpenAI-совместимый сервер —
+    # vLLM / Ollama / llama.cpp у себя или та же модель у облачного провайдера в РФ. Включается только при заданном адресе.
+    openweights_base_url: str = ''            # например http://vllm.internal:8000/v1 или http://localhost:11434/v1
+    openweights_api_key: str = ''             # пусто — без авторизации (свой сервер)
+    openweights_auth: str = 'Bearer'          # Bearer | Api-Key (Yandex AI Studio)
+    openweights_model: str = 'qwen3:8b'       # имя модели на сервере
+    openweights_project: str = ''             # заголовок OpenAI-Project (каталог Yandex Cloud), если нужен
+    openweights_price_per_1k: float = 0.0     # свой сервер — 0 (платите за GPU), у провайдера — по его прайсу
+    openweights_no_think: bool = False        # Qwen3 с режимом рассуждения: /no_think — быстрее и без «мыслей» в ответе
 
     # --- Кабинет менеджера ---
     secret_key: str = 'dev-secret-change-me-please-32chars'

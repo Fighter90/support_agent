@@ -113,3 +113,13 @@ def test_chat_history_and_forget():
         pii.mask(cid2, 'тел +7 916 123-45-67')
         db.execute('UPDATE conversations SET updated_at=? WHERE id=?', (db.now() - 200 * 86400, cid2))
         assert purge_pii() >= 1 and not db.rows('SELECT 1 FROM pii WHERE conv_id=?', (cid2,))
+
+
+def test_vat_label_from_card():
+    from app import card, quotes
+
+    assert card.vat_from_text('Количество лицензий Возврат НДС 22% Физическая доставка') == 22
+    assert card.vat_from_text('Размер НДС (22%) 575,93 ₽') is None and card.vat_from_text('22% НДС можно вернуть') == 22
+    assert card.vat_from_text('Цена 1 000 ₽ Без НДС') == 0
+    assert card.vat_from_text('Описание продукта') is None
+    assert quotes._vat(3194.0, False, 22) == round(3194 * 22 / 122, 2) and quotes._vat(1000.0, False, 0) == 0.0

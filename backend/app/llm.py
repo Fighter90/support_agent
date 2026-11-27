@@ -207,6 +207,53 @@ class YandexGPT:
         return res
 
 
+class OpenWeights(YandexGPT):
+    """Модель с открытыми весами через OpenAI-совместимый API (vLLM, Ollama, llama.cpp, облачный хостинг той же модели).
+
+    Тот же формат function calling, что у YandexGPT, поэтому агент, инструменты и проверки работают без изменений —
+    это путь внедрения в закрытый контур Softline: веса скачиваются и запускаются на своих серверах."""
+
+    name = 'openweights'
+
+    @property
+    def model(self) -> str:
+        return self.s.openweights_model
+
+    def available(self) -> bool:
+        return bool(self.s.openweights_base_url)
+
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], temperature: float = 0.2, tool_choice: str = 'auto') -> LLMResult:
+        t0 = time.time()
+        msgs = self._convert(messages)
+        if self.s.openweights_no_think and msgs and msgs[0]['role'] == 'system':
+            msgs[0] = {**msgs[0], 'content': msgs[0]['content'] + '\n/no_think'}
+        payload: dict[str, Any] = {'model': self.model, 'messages': msgs, 'temperature': temperature, 'max_tokens': 1500}
+        if tools:
+            payload['tools'] = tools
+            payload['tool_choice'] = tool_choice
+        headers = {}
+        if self.s.openweights_api_key:
+            headers['Authorization'] = f'{self.s.openweights_auth} {self.s.openweights_api_key}'
+        if self.s.openweights_project:
+            headers['OpenAI-Project'] = self.s.openweights_project
+        r = self.http.post(f'{self.s.openweights_base_url.rstrip("/")}/chat/completions', json=payload, headers=headers,
+                           timeout=max(self.s.llm_timeout_s, 180))
+        if r.status_code >= 400:
+            raise LLMError(f'OpenWeights: HTTP {r.status_code} {r.text[:300]}')
+        d = r.json()
+        msg = d['choices'][0]['message']
+        usage = d.get('usage', {})
+        text = msg.get('content') or ''
+        if '</think>' in text:  # модели с рассуждением (Qwen3) — клиенту только ответ
+            text = text.split('</think>', 1)[1].strip()
+        res = LLMResult(text=text, tokens_in=usage.get('prompt_tokens', 0), tokens_out=usage.get('completion_tokens', 0),
+                        provider=self.name, model=self.model, ms=int((time.time() - t0) * 1000))
+        for tc in msg.get('tool_calls') or []:
+            res.tool_calls.append(ToolCall(id=tc.get('id') or 'call_' + uuid.uuid4().hex[:8], name=tc['function']['name'],
+                                           arguments=_args(tc['function'].get('arguments'))))
+        return res
+
+
 # ------------------------------------------------------------------ Mock (детерминированный, без сети)
 
 class MockLLM:
@@ -257,17 +304,18 @@ _providers: dict[str, Any] = {}
 
 def provider(name: str) -> Any:
     if name not in _providers:
-        _providers[name] = {'gigachat': GigaChat, 'yandex': YandexGPT, 'mock': MockLLM}[name]()
+        _providers[name] = {'gigachat': GigaChat, 'yandex': YandexGPT, 'openweights': OpenWeights, 'mock': MockLLM}[name]()
     return _providers[name]
 
 
-def chain() -> list[Any]:
-    """Основная модель → резервная → mock (агент отвечает даже при недоступности обеих моделей)."""
+def chain(prefer: str = '') -> list[Any]:
+    """Основная модель → резервная → mock (агент отвечает даже при недоступности обеих моделей).
+    prefer — модель, выбранная для диалога (например, openweights для показа пути внедрения)."""
     s = get_settings()
     out = []
-    names = [s.llm_provider, s.llm_fallback_provider] + (['mock'] if s.llm_allow_mock else [])
+    names = [prefer, s.llm_provider, s.llm_fallback_provider] + (['mock'] if s.llm_allow_mock else [])
     for n in names:
-        if n and n in ('gigachat', 'yandex', 'mock') and all(p.name != n for p in out):
+        if n and n in ('gigachat', 'yandex', 'openweights', 'mock') and all(p.name != n for p in out):
             p = provider(n)
             if p.available():
                 out.append(p)

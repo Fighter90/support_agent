@@ -96,6 +96,7 @@ def _messages(cid: str, after: int = 0, internal: bool = False) -> list[dict[str
 
 class StartIn(BaseModel):
     page_url: str = ''
+    model: str = ''  # 'openweights' — диалог на модели с открытыми весами (ссылка /?model=open)
 
 
 class MessageIn(BaseModel):
@@ -127,7 +128,10 @@ class FixIn(BaseModel):
 
 @app.get('/api/health')
 def health() -> dict[str, Any]:
-    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled(), 'payments_mode': payments.mode(), 'telegram': telegram.enabled()}
+    s = get_settings()
+    ow = llm.provider('openweights')
+    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()],
+            'openweights': {'enabled': ow.available(), 'model': s.openweights_model if ow.available() else ''}, 'payments': payments.enabled(), 'payments_mode': payments.mode(), 'telegram': telegram.enabled()}
 
 
 @app.get('/api/catalog/search')
@@ -146,15 +150,23 @@ def catalog_search(q: str = Query('', max_length=200), request: Request = None) 
 @app.post('/api/chat/start')
 def start(body: StartIn, request: Request) -> dict[str, Any]:
     _limit(request, 20, bucket='start')
-    cid = agent.new_conversation(body.page_url)
+    cid = agent.new_conversation(body.page_url, body.model if body.model == 'openweights' and llm.provider('openweights').available() else '')
     mid = db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)', (cid, 'assistant', GREETING, db.now()))
-    return {'conversation_id': cid, 'messages': [{'id': mid, 'role': 'assistant', 'content': GREETING, 'meta': {}}]}
+    llm_name = (db.one('SELECT llm FROM conversations WHERE id=?', (cid,)) or {}).get('llm') or ''
+    return {'conversation_id': cid, 'model': _model_label(llm_name), 'messages': [{'id': mid, 'role': 'assistant', 'content': GREETING, 'meta': {}}]}
+
+
+def _model_label(name: str) -> str:
+    s = get_settings()
+    if name == 'openweights':
+        return f'{s.openweights_model.split("/")[-2] if "/" in s.openweights_model else s.openweights_model} · открытые веса'
+    return ''
 
 
 @app.get('/api/chat/{cid}')
 def history(cid: str, after: int = 0) -> dict[str, Any]:
     c = _conv(cid)
-    return {'conversation_id': cid, 'status': c['status'], 'messages': _messages(cid, after)}
+    return {'conversation_id': cid, 'status': c['status'], 'model': _model_label(c.get('llm') or ''), 'messages': _messages(cid, after)}
 
 
 @app.post('/api/chat/{cid}/message')

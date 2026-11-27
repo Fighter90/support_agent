@@ -95,8 +95,22 @@ A-запись домена должна указывать на сервер, �
 | `TELEGRAM_PROXY` | Необязательно: прокси для Bot API (`http://…` или `socks5://…`), если api.telegram.org недоступен из сети сервера |
 | `TELEGRAM_API_BASE` | Необязательно: свой адрес Bot API, например обратный прокси за рубежом (по умолчанию `https://api.telegram.org`) |
 | `LLM_ALLOW_MOCK` | В продакшене `false` (без заглушки модели) |
+| `OPENWEIGHTS_BASE_URL` | Модель с открытыми весами: адрес OpenAI-совместимого сервера (`http://vllm.internal:8000/v1`, `http://localhost:11434/v1` для Ollama, `https://llm.api.cloud.yandex.net/v1` для Qwen3 в Yandex AI Studio). Пусто — выключено |
+| `OPENWEIGHTS_MODEL`, `OPENWEIGHTS_API_KEY`, `OPENWEIGHTS_AUTH`, `OPENWEIGHTS_PROJECT` | Имя модели (`Qwen/Qwen3.6-35B-A3B`, `qwen3:8b`, `gpt://<каталог>/qwen3.6-35b-a3b/latest`), ключ (пусто для своего сервера), схема `Bearer` или `Api-Key`, каталог Yandex Cloud |
+| `OPENWEIGHTS_NO_THINK`, `OPENWEIGHTS_PRICE_PER_1K` | `true` — выключить режим рассуждения Qwen3 (быстрее); цена 1000 токенов для учёта стоимости (свой сервер — 0) |
 
 После изменения `.env` выполните `docker compose up -d app`. Сертификат НУЦ Минцифры, нужный для GigaChat, уже встроен в образ.
+
+# 3а. Модель с открытыми весами в контуре Softline
+
+Агент не привязан к GigaChat: адаптер `openweights` работает с любым OpenAI-совместимым сервером, формат вызова инструментов тот же.
+
+1. Разверните модель у себя, например vLLM на сервере с GPU: `vllm serve Qwen/Qwen3.6-35B-A3B --enable-auto-tool-choice --tool-call-parser hermes` (MoE, 3B активных параметров — достаточно одного GPU 80 ГБ; Qwen3 8B в Ollama — для проверки на ноутбуке).
+2. Укажите в `.env` `OPENWEIGHTS_BASE_URL` и `OPENWEIGHTS_MODEL`.
+3. Режимы: `LLM_PROVIDER=openweights` — вся поддержка на открытой модели; или оставить GigaChat основной, а открытую модель включать для отдельных диалогов по ссылке `/?model=open` (так на стенде).
+4. Проверьте качество тем же прогоном: `LLM_PROVIDER=openweights .venv/bin/python eval/run_eval.py --out eval/report_openweights.json` и `eval/catalog_rag_eval.py 6 eval/catalog_rag_report_openweights.json`.
+
+Данные при этом не покидают контур Softline: модель, каталог, база знаний и диалоги — на своих серверах.
 
 # 4. Обновление кода и данных
 
@@ -177,6 +191,10 @@ node scripts/regress/team_regress.mjs                             # команд
 - **Срок хранения ПДн из чата — 180 дней** (`PII_RETENTION_DAYS` в `main.py`). Раз в час фоновая задача удаляет таблицу соответствия меток (`pii`) у диалогов без активности дольше срока; переписка остаётся обезличенной (метки `[ТЕЛ_1]` и т. п.) для метрик и обучения агента.
 - Клиент сам удаляет свои данные кнопкой «Удалить историю и мои данные из чатов» (`POST /api/chat/forget`). История чатов клиента (`POST /api/chat/history`) хранится в его браузере 30 дней — это список id его диалогов, без аккаунта.
 - Чтобы удалить данные клиента полностью по запросу, удалите строки по `conv_id` из `messages`, `pii`, `quotes` и `escalations`.
+
+# 9а. Стенд как демо-прототип
+
+По условию организаторов на всех страницах стенда есть плашка «Демо-прототип конкурса «ИИкузница»» (`frontend/index.html`), стенд закрыт от поисковиков: `<meta name="robots" content="noindex, nofollow">`, `frontend/public/robots.txt` (`Disallow: /`) и заголовок `X-Robots-Tag` в `deploy/Caddyfile`. Для боевого внедрения на store.softline.ru плашку и запрет индексации убирают.
 
 # 10. Типовые проблемы
 

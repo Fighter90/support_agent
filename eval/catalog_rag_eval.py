@@ -248,7 +248,7 @@ def main() -> None:
     by_type = {t: {k: round(statistics.mean(x[k] for x in rows if x['type'] == t), 3) for k in METRICS} | {'n': sum(x['type'] == t for x in rows)}
                for t in dict.fromkeys(x['type'] for x in rows)}
     summary |= {'questions': len(rows), 'feed_offers': st.get('offers'), 'feed_loaded_at': st.get('loaded_at')}
-    (ROOT / 'eval' / 'catalog_rag_report.json').write_text(
+    (Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / 'eval' / 'catalog_rag_report.json').write_text(
         json.dumps({'summary': summary, 'by_type': by_type, 'results': rows}, ensure_ascii=False, indent=1), encoding='utf-8')
     print(json.dumps({'summary': summary, 'by_type': by_type}, ensure_ascii=False, indent=1))
 

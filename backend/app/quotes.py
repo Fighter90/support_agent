@@ -9,14 +9,16 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 import time
 from pathlib import Path
 from typing import Any
 
-from app import catalog, db, discounts
+from app import card, catalog, db, discounts
 from app.config import ROOT_DIR, get_settings
 
+VAT_FROM_CARD = os.environ.get('VAT_FROM_CARD', '1') == '1'  # ставка НДС с карточки товара (в тестах без сети — 0)
 VAT_RATE = 22  # ставка НДС с 01.01.2026; ПО из реестра Минцифры НДС не облагается (пп. 26 п. 2 ст. 149 НК РФ)
 LOGO = ROOT_DIR / 'backend' / 'app' / 'static' / 'logo.png'
 
@@ -25,8 +27,11 @@ class QuoteError(Exception):
     pass
 
 
-def _vat(price_total: float, domestic: bool) -> float:
-    return 0.0 if domestic else round(price_total * VAT_RATE / (100 + VAT_RATE), 2)
+def _vat(price_total: float, domestic: bool, rate: int | None = None) -> float:
+    """НДС внутри конечной цены. Источник ставки — метка карточки товара («Возврат НДС 22%» / «Без НДС»),
+    без неё — правило: ПО из реестра Минцифры без НДС, остальное 22%."""
+    r = (0 if domestic else VAT_RATE) if rate is None else rate
+    return round(price_total * r / (100 + r), 2) if r else 0.0
 
 
 
@@ -71,8 +76,10 @@ def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 
         d = max(discount if discount <= cap else 0, pp)
         price = round(o['price'] * (1 - d / 100), 2)
         total = round(price * qty, 2)
+        rate = card.vat_percent(oid) if VAT_FROM_CARD else None
         lines.append({'offer_id': oid, 'article': str(oid), 'name': o['name'], 'quantity': qty, 'list_price': o['price'], 'price': price,
-                      'total': total, 'vat': _vat(total, bool(o['registry'])), 'domestic': bool(o['registry']), 'url': o['url'],
+                      'total': total, 'vat': _vat(total, bool(o['registry']), rate), 'domestic': (rate == 0) if rate is not None else bool(o['registry']),
+                      'vat_rate': rate if rate is not None else (0 if o['registry'] else VAT_RATE), 'url': o['url'],
                       'discount': d, 'promo': promo['title'] if promo and promo['percent'] >= d else '',
                       # цена есть, но в фиде available=false: продаём (правило заказчика), менеджеру — отметка проверить поставку
                       'check_supply': not o.get('available')})

@@ -197,3 +197,8 @@ input.full { width: 100%; box-sizing: border-box; margin: 8px 0; }
 .team form.row-form { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 .team form.row-form label { display: flex; align-items: center; gap: 8px; }
 .team form.row-form label.check { flex-direction: row; }
+
+.model-tag { margin-left: 6px; font-size: 11px; background: #eef6ee; color: #1f6b33; }
+
+/* плашка демо-прототипа (условие организаторов): видна на всех страницах */
+.demo-banner { background: #1f1f22; color: #fff; text-align: center; font: 600 13px/1.35 Arial, sans-serif; padding: 7px 12px; position: relative; z-index: 60; }

@@ -69,11 +69,17 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--chats', default=str(ROOT / 'data' / 'raw' / 'task' / 'chats'))
     ap.add_argument('--n', type=int, default=60)
+    ap.add_argument('--out', default=str(ROOT / 'eval' / 'report.json'))  # отчёт по другой модели — в свой файл
+    ap.add_argument('--cases', default='')  # готовая выборка (eval/cases.jsonl) — та же, что в основном отчёте, без исходных переписок
     args = ap.parse_args()
     db.init_db()
     kb.load_base()
-    cases = sample(load_cases(Path(args.chats)), args.n)
-    (ROOT / 'eval' / 'cases.jsonl').write_text('\n'.join(json.dumps(c, ensure_ascii=False) for c in cases), encoding='utf-8')
+    if args.cases:
+        cases = [json.loads(x) for x in Path(args.cases).read_text(encoding='utf-8').splitlines() if x.strip()][:args.n]
+    else:
+        cases = sample(load_cases(Path(args.chats)), args.n)
+    if args.out.endswith('eval/report.json'):
+        (ROOT / 'eval' / 'cases.jsonl').write_text('\n'.join(json.dumps(c, ensure_ascii=False) for c in cases), encoding='utf-8')
     results = []
     t_run = db.now()
     for i, c in enumerate(cases, 1):
@@ -125,7 +131,7 @@ def main() -> None:
         'by_category': {cat: {'n': len(v), 'ok': sum(x['ok'] for x in v)} for cat, v in
                         ((k, [r for r in results if r['category'] == k]) for k in sorted({r['category'] for r in results}))},
     }
-    (ROOT / 'eval' / 'report.json').write_text(json.dumps({'summary': rep, 'results': results}, ensure_ascii=False, indent=1), encoding='utf-8')
+    Path(args.out).write_text(json.dumps({'summary': rep, 'results': results}, ensure_ascii=False, indent=1), encoding='utf-8')
     print(json.dumps(rep, ensure_ascii=False, indent=1))
 
 

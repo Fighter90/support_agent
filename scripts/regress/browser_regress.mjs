@@ -273,8 +273,12 @@ await step('Справка: отдельный пункт меню, 19 разд�
   await mg.locator('aside button', { hasText: 'Справка' }).click(); await mg.waitForTimeout(2000)
   const secs = await mg.locator('.help-sec').count(); must(secs >= 19, 'разделов справки ' + secs)
   await mg.evaluate(async () => { for (const im of document.querySelectorAll('.help img')) { im.loading = 'eager'; im.scrollIntoView(); await new Promise(r => setTimeout(r, 150)) } })
-  await mg.waitForTimeout(1500)
-  const broken = await mg.evaluate(() => [...document.querySelectorAll('.help img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src))
+  let broken = []
+  for (let i = 0; i < 30; i++) {  // ждём загрузки всех скриншотов (до 15 с)
+    broken = await mg.evaluate(() => [...document.querySelectorAll('.help img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src))
+    if (!broken.length) break
+    await mg.waitForTimeout(500)
+  }
   must(broken.length === 0, 'не загрузились: ' + broken.join(', '))
   const txt = await mg.locator('.help').innerText(); must(/Подключение личного Telegram/.test(txt) && /реплаем/.test(txt), 'нет инструкции по Telegram')
   await mg.locator('.help-toc a', { hasText: 'Скидки' }).click(); await mg.waitForTimeout(600)
@@ -344,6 +348,21 @@ await step('История чатов: прошлые диалоги, откры
   must(box && box.x > vp.width - 140 && box.y > vp.height - 140, 'иконка не внизу справа')
   await fab.click(); await cl.locator('.chat-head').waitFor()
   return `${n} диалогов в истории, прошлый открыт; иконка внизу справа`
+})
+await step('Демо-прототип: плашка на витрине и в кабинете, noindex, robots.txt', cl, async () => {
+  await cl.bringToFront()
+  must(/Демо-прототип конкурса «ИИкузница»/.test(await cl.locator('.demo-banner').innerText()), 'нет плашки на витрине')
+  must(await mg.locator('.demo-banner').count(), 'нет плашки в кабинете')
+  must((await cl.locator('meta[name=robots]').getAttribute('content')) === 'noindex, nofollow', 'нет meta robots')
+  const r = await cl.request.get(`${BASE}/robots.txt`); must(/Disallow: \//.test(await r.text()), 'robots.txt не закрывает стенд')
+  must((r.headers()['x-robots-tag'] || '').includes('noindex'), 'нет заголовка X-Robots-Tag')
+  return 'плашка, meta noindex, robots.txt Disallow: /, X-Robots-Tag'
+})
+await step('ЭДО: ответ по базе знаний с контактом edo@softline.com', cl, async () => {
+  await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
+  const a = await ask('Я из ООО «Ромашка», ИНН 7707083893. Кажется, мы у вас уже покупали. Подключён ли у нас с вами ЭДО?')
+  must(/edo@softline\.com/i.test(a), 'нет контакта ЭДО: ' + a.slice(0, 120))
+  return a.slice(0, 110)
 })
 await step('Безопасность: /.env и API кабинета без токена', cl, async () => {
   const a = (await fetch(`${BASE}/.env`)).status, b = (await fetch(`${BASE}/api/manager/escalations`)).status

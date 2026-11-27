@@ -59,7 +59,29 @@ def get(offer_id: int) -> dict[str, Any]:
                 if part:
                     card[names[start]] = part
             card['source'] = 'карточка товара на store.softline.ru'
+            vat = vat_from_text(text)
+            if vat is not None:
+                card['vat_percent'] = vat  # метка «Возврат НДС 22%» / «Без НДС» на карточке (ответ заказчика 27.11)
     except httpx.HTTPError as e:
         card['site_error'] = f'сайт недоступен: {e.__class__.__name__}; использованы данные фида'
     _CACHE[offer_id] = (time.time(), card)
     return card
+
+
+def vat_from_text(text: str) -> int | None:
+    """Ставка НДС по метке карточки: «Возврат НДС 22%» → 22, «Без НДС» / «НДС не облагается» → 0, нет метки → None."""
+    # только метка карточки: «Возврат НДС 22%» / «22% НДС можно вернуть»; «Размер НДС (22%)» — шаблон модального окна на всех страницах
+    m = re.search(r'Возврат\s+НДС\s*(\d{1,2})\s*%', text) or re.search(r'(\d{1,2})\s*%\s*НДС\s+можно\s+вернуть', text)
+    if m:
+        return int(m.group(1))
+    if re.search(r'Без\s+НДС|НДС\s+не\s+облага', text, re.I):
+        return 0
+    return None
+
+
+def vat_percent(offer_id: int) -> int | None:
+    """Ставка из карточки (кэш 24 ч); сайт недоступен — None, тогда правило по реестру Минцифры."""
+    try:
+        return get(offer_id).get('vat_percent')
+    except Exception:  # noqa: BLE001
+        return None

@@ -111,6 +111,7 @@ MIGRATIONS = [  # новые колонки для баз, созданных п
     "ALTER TABLE llm_calls ADD COLUMN step TEXT DEFAULT ''",
     "ALTER TABLE conversations ADD COLUMN mode TEXT DEFAULT 'agent'",   # agent | manager (менеджер ведёт диалог сам)
     "ALTER TABLE conversations ADD COLUMN manager TEXT DEFAULT ''",
+    "ALTER TABLE conversations ADD COLUMN llm TEXT DEFAULT ''",          # модель, выбранная для диалога (openweights — открытые веса)
 ]
 
 

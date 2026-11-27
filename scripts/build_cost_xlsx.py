@@ -35,6 +35,7 @@ WRAP = Alignment(wrap_text=True, vertical='top')
 PRICES = {
     'GigaChat-2-Max': 0.65, 'GigaChat-2-Max (Cloud.ru)': 0.56934, 'GigaChat-2-Pro': 0.50, 'GigaChat-2 (Lite)': 0.065,
     'YandexGPT Pro 5.1': 0.80, 'YandexGPT Pro 5': 1.20, 'YandexGPT Lite': 0.20,
+    'Qwen3.6-35B-A3B, открытые веса (Yandex AI Studio)': 0.40,
 }
 STEP_RU = {'tool_choice': 'Выбор инструмента (поиск, варианты, база знаний, КП, эскалация)',
            'answer': 'Ответ клиенту по результатам инструментов', 'price_fix': 'Повтор после проверки цен (редко)'}
@@ -218,7 +219,8 @@ def main() -> None:
              'GigaChat-2-Max (Cloud.ru)': ('РФ (Cloud.ru)', 'Та же модель в Evolution Foundation Models: 569,34 ₽/1 млн с НДС; '
                                            'GigaChat API юрлиц (СалютДевайсы) работает до 30.11.2026 — путь для промышленной эксплуатации'),
              'YandexGPT Pro 5': ('РФ (Яндекс)', 'Предыдущая версия, дороже 5.1'),
-             'YandexGPT Lite': ('РФ (Яндекс)', 'Дешёвая модель для простых FAQ')}
+             'YandexGPT Lite': ('РФ (Яндекс)', 'Дешёвая модель для простых FAQ'),
+             'Qwen3.6-35B-A3B, открытые веса (Yandex AI Studio)': ('РФ (Яндекс) / свой контур', 'Apache 2.0, MoE 35B / 3B активных: та же модель разворачивается в контуре Softline на vLLM на одном GPU 80 ГБ; на стенде — диалог по ссылке /?model=open')}
     for i, (name, price) in enumerate(PRICES.items()):
         r = 4 + i
         m.cell(r, 1, name)
@@ -304,6 +306,7 @@ def main() -> None:
         'GigaChat 2 Max — 0,65 ₽ за 1000 токенов с НДС, синхронный режим; Pro — 0,50; Lite — 0,065. developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs (цены с 01.02.2026).',
         'YandexGPT Pro 5.1 — 0,80 ₽ за 1000 входных и выходных токенов с НДС (асинхронно 0,41 ₽); Pro 5 — 1,20 ₽; Lite — 0,20 ₽. aistudio.yandex.ru/docs/ru/ai-studio/pricing (проверено 27.11.2026).',
         'GigaChat 2 Max на Cloud.ru (Evolution Foundation Models) — 569,34 ₽ за 1 млн токенов с НДС, вход и выход по одной цене. GigaChat API юрлиц через ООО «СалютДевайсы» — до 30.11.2026 (developers.sber.ru, обновлено 25.11.2026).',
+        'Qwen3.6-35B-A3B (Apache 2.0, открытые веса, MoE: 35B параметров, 3B активных) в Yandex AI Studio — цена на странице тарифов не опубликована, в расчёте 0,40 ₽ за 1000 токенов с НДС по аналогу Qwen3-30B-A3B (yandex.cloud/ru/docs/foundation-models/pricing). Qwen3.6-35B-A3B из каталога AI Studio выведена. В своём контуре платите за GPU, а не за токены: модель помещается на один GPU 80 ГБ; решение о размере модели — по замеру качества (eval/report_openweights_*.json).',
         'Лист «Нагрузка»: пять сценариев от факта заказчика до 5 000 диалогов в день — токены в день, пик запросов в минуту, ₽ в день и в месяц на четырёх моделях, сколько менеджеров нужно на эскалации.',
         'НДС 22% (с 01.01.2026) выделен из цен: без НДС = с НДС / 1,22 — по требованию шаблона «все суммы без НДС».',
         'Токены на запрос — замер по журналу llm_calls на прогоне агента по обезличенным перепискам (eval/run_eval.py); история диалога растёт, поэтому 3-е и 4-е сообщения дороже первого.',

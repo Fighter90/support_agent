@@ -82,6 +82,7 @@ export default function Chat() {
   const [rated, setRated] = useState<Record<number, number>>({})
   const [mgrTyping, setMgrTyping] = useState(false)
   const [mgrMode, setMgrMode] = useState(false)
+  const [model, setModel] = useState('')         // модель диалога, если не основная (открытые веса)
   const [min, setMin] = useState(false)          // свёрнут в иконку внизу справа
   const [unread, setUnread] = useState(0)
   const [hist, setHist] = useState<any[] | null>(null)
@@ -105,12 +106,15 @@ export default function Chat() {
     && (paid || clock - lastChange.current > (asksQuestion ? 90000 : 45000))  // на встречный вопрос ассистента ждём дольше
 
   const load = async (id: string, after = 0) => {
-    const d = await api<{ messages: Message[] }>(`/api/chat/${id}?after=${after}`)
+    const d = await api<{ messages: Message[]; model?: string }>(`/api/chat/${id}?after=${after}`)
+    if (!after) setModel(d.model || '')
     if (d.messages.length) setMsgs(m => (after ? [...m, ...d.messages.filter(x => !m.some(y => y.id === x.id))] : d.messages))
   }
 
   const start = async () => {
-    const d = await api<{ conversation_id: string; messages: Message[] }>('/api/chat/start', { body: { page_url: location.href } })
+    const want = new URLSearchParams(location.search).get('model') === 'open' ? 'openweights' : ''  // /?model=open — диалог на модели с открытыми весами
+    const d = await api<{ conversation_id: string; model?: string; messages: Message[] }>('/api/chat/start', { body: { page_url: location.href, model: want } })
+    setModel(d.model || '')
     try { localStorage.setItem(CONV_KEY, d.conversation_id) } catch { /* ignore */ }
     histAdd(d.conversation_id)
     setCid(d.conversation_id); setMsgs(d.messages)
@@ -213,7 +217,7 @@ export default function Chat() {
     <div className="chat">
       <div className="chat-head">
         <div className="avatar"><Bot size={22} /></div>
-        <div><b>ИИ-ассистент Softline</b><div className="muted small">{mgrMode ? 'Диалог ведёт менеджер Softline' : 'Отвечает виртуальный помощник · менеджер — по кнопке'}</div></div>
+        <div><b>ИИ-ассистент Softline</b><div className="muted small">{mgrMode ? 'Диалог ведёт менеджер Softline' : 'Отвечает виртуальный помощник · менеджер — по кнопке'}{model ? <span className="tag model-tag"> {model}</span> : null}</div></div>
         <div className="head-actions">
           <button className="btn sm ghost" onClick={operator} title="Переключиться на живого менеджера"><Headset size={14} /> Позвать оператора</button>
           <button className="link small" onClick={reset}>Новый диалог</button>
