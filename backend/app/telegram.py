@@ -47,11 +47,19 @@ def enabled() -> bool:
 
 class Bot:
     def __init__(self, http: httpx.Client | None = None) -> None:
-        self.http = http or httpx.Client(timeout=40)
+        # В контейнере нет IPv6-маршрута: привязка к 0.0.0.0 заставляет ходить в api.telegram.org по IPv4
+        self.http = http or httpx.Client(timeout=40, transport=httpx.HTTPTransport(local_address='0.0.0.0', retries=2))
         self.username = os.environ.get('TELEGRAM_BOT_USERNAME', 'SoftlineSupportBot')
 
     def call(self, method: str, **params: Any) -> Any:
-        r = self.http.post(f'https://api.telegram.org/bot{token()}/{method}', json=params)
+        for attempt in range(3):  # сетевые сбои — повтор, чтобы уведомление не потерялось
+            try:
+                r = self.http.post(f'https://api.telegram.org/bot{token()}/{method}', json=params)
+                break
+            except httpx.TransportError:
+                if attempt == 2 or method == 'getUpdates':
+                    raise
+                time.sleep(1.5 * (attempt + 1))
         data = r.json()
         if not data.get('ok'):
             raise RuntimeError(f'Telegram {method}: {data.get("description")}')
