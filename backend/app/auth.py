@@ -1,39 +1,56 @@
-"""Вход в кабинет менеджера: JWT (HS256), учётные записи из окружения (менеджер и учётка жюри).
+"""Вход в кабинет: JWT (HS256), учётки в таблице users (team.py). Роли admin и manager.
 
-Схема JWT-авторизации перенесена из собственной наработки автора methodAgent (GPL-3.0) и упрощена.
+Схема JWT-авторизации перенесена из собственной наработки автора methodAgent (GPL-3.0) и расширена ролями.
+Новый менеджер входит по одноразовой ссылке-приглашению и сам задаёт пароль — администратор его не знает.
 """
 
 from __future__ import annotations
 
-import hmac
 import time
 
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app import team
 from app.config import get_settings
 
 _bearer = HTTPBearer(auto_error=False)
 _failures: dict[str, list[float]] = {}
 
 
-def accounts() -> dict[str, tuple[str, str]]:
+def _token(u: dict) -> dict[str, str]:
     s = get_settings()
-    return {s.manager_login: (s.manager_password, 'Менеджер Softline'), s.jury_login: (s.jury_password, 'Жюри ИИкузницы')}
+    token = jwt.encode({'sub': u['login'], 'name': u['name'], 'role': u['role'], 'exp': int(time.time()) + s.token_ttl_hours * 3600},
+                       s.secret_key, algorithm='HS256')
+    return {'token': token, 'name': u['name'], 'login': u['login'], 'role': u['role']}
 
 
-def login(user: str, password: str, ip: str) -> dict[str, str]:
+def _throttle(ip: str) -> list[float]:
     recent = [t for t in _failures.get(ip, []) if time.time() - t < 60]
     if len(recent) >= 5:
         raise HTTPException(429, 'Слишком много попыток входа, подождите минуту')
-    acc = accounts().get(user)
-    if not acc or not hmac.compare_digest(acc[0], password):
+    return recent
+
+
+def login(user: str, password: str, ip: str) -> dict[str, str]:
+    recent = _throttle(ip)
+    u = team.authenticate(user.strip().lower(), password)
+    if not u:
         _failures[ip] = [*recent, time.time()]
         raise HTTPException(401, 'Неверный логин или пароль')
-    s = get_settings()
-    token = jwt.encode({'sub': user, 'name': acc[1], 'exp': int(time.time()) + s.token_ttl_hours * 3600}, s.secret_key, algorithm='HS256')
-    return {'token': token, 'name': acc[1], 'login': user}
+    team.heartbeat(u['login'], 'online')
+    return _token(u)
+
+
+def by_invite(code: str, ip: str) -> dict[str, str]:
+    recent = _throttle(ip)
+    u = team.use_invite(code)
+    if not u:
+        _failures[ip] = [*recent, time.time()]
+        raise HTTPException(401, 'Ссылка-приглашение недействительна или истекла — попросите администратора выдать новую')
+    team.heartbeat(u['login'], 'online')
+    return _token(u)
 
 
 def manager(cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> dict[str, str]:
@@ -43,4 +60,13 @@ def manager(cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> dic
         data = jwt.decode(cred.credentials, get_settings().secret_key, algorithms=['HS256'])
     except jwt.PyJWTError:
         raise HTTPException(401, 'Сессия истекла, войдите снова') from None
-    return {'login': data['sub'], 'name': data.get('name', data['sub'])}
+    u = team.get(data['sub'])
+    if not u or not u['active']:
+        raise HTTPException(401, 'Учётная запись отключена администратором')
+    return {'login': u['login'], 'name': u['name'], 'role': u['role']}
+
+
+def admin(m: dict = Depends(manager)) -> dict[str, str]:
+    if m['role'] != 'admin':
+        raise HTTPException(403, 'Доступно только администратору')
+    return m

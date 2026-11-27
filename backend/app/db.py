@@ -122,6 +122,9 @@ def init_db() -> None:
                 c.execute(sql)
             except sqlite3.OperationalError:
                 pass  # колонка уже есть
+        from app import team
+
+        team.create_schema(c)
 
 
 def now() -> float:

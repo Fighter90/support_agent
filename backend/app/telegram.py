@@ -5,6 +5,8 @@
 - Уведомления: новая эскалация (причина, резюме агента, последние сообщения клиента) с кнопками «Взять диалог» /
   «Вернуть агенту»; новые сообщения клиента в диалоге, который ведёт менеджер.
 - Ответ реплаем на уведомление уходит клиенту в чат на сайте (как сообщение менеджера).
+- Несколько менеджеров: каждый привязывает свой Telegram к своей учётке. Обращение получает назначенный менеджер
+  (team.py), копию — администраторы; обращение в очереди (свободных нет) — все. Сообщения клиента — ведущему и помощникам.
 - 152-ФЗ: Telegram — зарубежный сервис, поэтому в бот уходит только обезличенный текст (персональные данные
   заменены метками [ТЕЛ_1], [EMAIL_1] — как их видит модель); полный текст — только в кабинете на сервере в РФ.
 - Работает long polling (getUpdates) в фоновом потоке — вебхук и открытые порты не нужны. Токен: TELEGRAM_BOT_TOKEN.
@@ -21,7 +23,7 @@ from typing import Any
 
 import httpx
 
-from app import db, handoff
+from app import db, handoff, team
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +77,17 @@ bot = Bot()
 
 
 def init() -> None:
+    from app.config import get_settings
+
     with db.conn() as c:
         c.executescript(SCHEMA)
+        for sql in ("ALTER TABLE tg_chats ADD COLUMN login TEXT DEFAULT ''", "ALTER TABLE tg_codes ADD COLUMN login TEXT DEFAULT ''"):
+            try:
+                c.execute(sql)
+            except Exception:  # noqa: BLE001 — колонка уже есть
+                pass
+    # чаты, подключённые до появления учёток, — за администратором (MANAGER_LOGIN)
+    db.execute("UPDATE tg_chats SET login=? WHERE login IS NULL OR login=''", (get_settings().manager_login,))
 
 
 def _state(key: str, default: int = 0) -> int:
@@ -89,12 +100,12 @@ def _set(key: str, value: int) -> None:
 
 
 def chats() -> list[dict[str, Any]]:
-    return db.rows('SELECT chat_id, username, name, manager, linked_at FROM tg_chats ORDER BY linked_at')
+    return db.rows('SELECT chat_id, username, name, manager, login, linked_at FROM tg_chats ORDER BY linked_at')
 
 
-def link_code(manager: str) -> dict[str, Any]:
+def link_code(manager: str, login: str = '') -> dict[str, Any]:
     code = secrets.token_urlsafe(9).replace('-', '').replace('_', '')[:12]
-    db.execute('INSERT INTO tg_codes (code, manager, created_at) VALUES (?,?,?)', (code, manager, db.now()))
+    db.execute('INSERT INTO tg_codes (code, manager, login, created_at) VALUES (?,?,?,?)', (code, manager, login, db.now()))
     return {'code': code, 'url': f'https://t.me/{bot.username}?start={code}', 'expires_in': CODE_TTL}
 
 
@@ -111,9 +122,23 @@ def _send(chat_id: int, text: str, conv_id: str = '', buttons: list[list[dict[st
         db.execute('INSERT OR REPLACE INTO tg_msgs (chat_id, message_id, conv_id) VALUES (?,?,?)', (chat_id, msg['message_id'], conv_id))
 
 
-def _broadcast(text: str, conv_id: str, buttons: list[list[dict[str, str]]] | None = None) -> None:
-    """Ставит уведомление в очередь для каждого подключённого чата: при сбое сети оно уйдёт позже, а не потеряется."""
-    for c in chats():
+def _recipients(logins: set[str] | None) -> list[dict[str, Any]]:
+    """Кому слать: указанным менеджерам + администраторам; None — всем подключённым чатам (обращение в очереди)."""
+    all_chats = chats()
+    if logins is None:
+        return all_chats
+    admins = {u['login'] for u in db.rows("SELECT login FROM users WHERE role='admin' AND active=1")}
+    want = set(logins) | admins
+    return [c for c in all_chats if c.get('login') in want]
+
+
+def to_user(login: str, text: str, conv_id: str = '') -> None:
+    _broadcast(text, conv_id, _buttons(conv_id) if conv_id else None, {login})
+
+
+def _broadcast(text: str, conv_id: str, buttons: list[list[dict[str, str]]] | None = None, logins: set[str] | None = None) -> None:
+    """Ставит уведомление в очередь для каждого чата-получателя: при сбое сети оно уйдёт позже, а не потеряется."""
+    for c in _recipients(logins):
         db.execute('INSERT INTO tg_outbox (chat_id, text, conv_id, buttons, next_at) VALUES (?,?,?,?,?)',
                    (c['chat_id'], text, conv_id, db.dumps(buttons) if buttons else '', db.now()))
 
@@ -144,24 +169,39 @@ def _buttons(cid: str) -> list[list[dict[str, str]]]:
 def notify_new() -> int:
     """Новые эскалации и сообщения клиентов в диалогах, которые ведёт менеджер, — в Telegram. Возвращает число отправок."""
     sent = 0
-    last_e, last_m = _state('esc', -1), _state('msg', -1)
-    if last_e < 0 or last_m < 0:  # первый запуск: не присылаем историю
+    team.dispatch()  # сначала назначаем исполнителя — уведомление уйдёт ему
+    last_e, last_m, last_l = _state('esc', -1), _state('msg', -1), _state('log', -1)
+    if last_e < 0 or last_m < 0 or last_l < 0:  # первый запуск: не присылаем историю
         _set('esc', (db.one('SELECT max(id) AS v FROM escalations') or {}).get('v') or 0)
         _set('msg', (db.one('SELECT max(id) AS v FROM messages') or {}).get('v') or 0)
+        _set('log', (db.one('SELECT max(id) AS v FROM team_log') or {}).get('v') or 0)
         return 0
     for e in db.rows('SELECT * FROM escalations WHERE id>? ORDER BY id', (last_e,)):
         _set('esc', e['id'])
         last = db.rows("SELECT content FROM messages WHERE conv_id=? AND role='user' ORDER BY id DESC LIMIT 3", (e['conv_id'],))
         lines = '\n'.join('• ' + m['content'][:300] for m in reversed(last))
-        text = (f'🔔 Эскалация #{e["id"]} — {e["category"] or REASONS.get(e["reason"], "Другое")}\n\n'
+        e = db.one('SELECT * FROM escalations WHERE id=?', (e['id'],)) or e
+        who = f'Назначено: {team.name_of(e["assignee"])}' if e.get('assignee') else 'В очереди — свободных менеджеров нет, возьмите, кто может'
+        text = (f'🔔 Эскалация #{e["id"]} — {e["category"] or REASONS.get(e["reason"], "Другое")}\n{who}\n\n'
                 f'Резюме агента: {e["summary"][:800]}\n\nКлиент писал:\n{lines or "—"}\n\n'
                 'Ответьте реплаем на это сообщение — ответ сразу придёт клиенту в чат на сайте.')
-        _broadcast(text, e['conv_id'], _buttons(e['conv_id']))
+        _broadcast(text, e['conv_id'], _buttons(e['conv_id']), {e['assignee']} if e.get('assignee') else None)
         sent += 1
-    rows = db.rows("SELECT m.id, m.conv_id, m.content FROM messages m JOIN conversations c ON c.id=m.conv_id "
+    # переназначения (не взяли вовремя / ушли из сети) — новому исполнителю
+    for lg in db.rows("SELECT l.*, e.created_at AS esc_at, e.category FROM team_log l JOIN escalations e ON e.id=l.esc_id "
+                      "WHERE l.id>? AND l.action='assign' ORDER BY l.id", (last_l,)):
+        _set('log', lg['id'])
+        if lg['created_at'] - lg['esc_at'] > 6 and lg['esc_id'] <= _state('esc', 0):
+            _broadcast(f'📥 Вам назначено обращение #{lg["esc_id"]} ({lg["category"]}) из очереди. '
+                       'Ответьте реплаем или возьмите диалог.', lg['conv_id'], _buttons(lg['conv_id']), {lg['target']})
+            sent += 1
+    mxl = (db.one('SELECT max(id) AS v FROM team_log') or {}).get('v') or 0
+    _set('log', max(mxl, _state('log', 0)))
+    rows = db.rows("SELECT m.id, m.conv_id, m.content, c.manager_login FROM messages m JOIN conversations c ON c.id=m.conv_id "
                    "WHERE m.id>? AND m.role='user' AND c.mode='manager' ORDER BY m.id", (last_m,))
     for m in rows:
-        _broadcast(f'💬 Клиент: {m["content"][:1500]}\n\n(ответьте реплаем)', m['conv_id'])
+        team_logins = {p['login'] for p in team.participants(m['conv_id'])} | ({m['manager_login']} if m['manager_login'] else set())
+        _broadcast(f'💬 Клиент: {m["content"][:1500]}\n\n(ответьте реплаем)', m['conv_id'], None, team_logins or None)
         sent += 1
     mx = (db.one('SELECT max(id) AS v FROM messages') or {}).get('v') or last_m
     _set('msg', max(mx, last_m))
@@ -170,13 +210,13 @@ def notify_new() -> int:
     target = discounts.sla_seconds()
     if _state('remind_from', -1) < 0:  # старые эскалации (до включения напоминаний) не трогаем
         _set('remind_from', (db.one('SELECT max(id) AS v FROM escalations') or {}).get('v') or 0)
-    for e in db.rows("SELECT id, conv_id, category FROM escalations WHERE status='open' AND id>? AND created_at < ?",
+    for e in db.rows("SELECT id, conv_id, category, assignee FROM escalations WHERE status='open' AND id>? AND created_at < ?",
                      (_state('remind_from', 0), db.now() - target)):
         if _state(f'remind:{e["id"]}', 0):
             continue
         _set(f'remind:{e["id"]}', 1)
         _broadcast(f'⏰ Эскалация #{e["id"]} ({e["category"]}) ждёт ответа дольше регламента — {target / 60:g} мин. '
-                   'Ответьте реплаем или возьмите диалог.', e['conv_id'], _buttons(e['conv_id']))
+                   'Ответьте реплаем или возьмите диалог.', e['conv_id'], _buttons(e['conv_id']), {e['assignee']} if e['assignee'] else None)
         sent += 1
     return sent
 
@@ -190,8 +230,9 @@ def handle(update: dict[str, Any]) -> None:
         if not chat or not db.one('SELECT id FROM conversations WHERE id=?', (cid,)):
             bot.call('answerCallbackQuery', callback_query_id=q['id'], text='Нет доступа')
             return
-        name = f'{chat["manager"] or "Менеджер Softline"} (Telegram)'
-        handoff.take(cid, name, on=action == 'take')
+        login = chat.get('login') or ''
+        name = f'{team.name_of(login) if login else chat["manager"] or "Менеджер Softline"} (Telegram)'
+        handoff.take(cid, name, on=action == 'take', login=login)
         bot.call('answerCallbackQuery', callback_query_id=q['id'],
                  text='Диалог ваш — агент молчит. Отвечайте реплаем.' if action == 'take' else 'Диалог передан ИИ-ассистенту')
         return
@@ -205,8 +246,8 @@ def handle(update: dict[str, Any]) -> None:
         row = db.one('SELECT * FROM tg_codes WHERE code=?', (code,)) if code else None
         if row and db.now() - row['created_at'] < CODE_TTL:
             db.execute('DELETE FROM tg_codes WHERE code=?', (code,))
-            db.execute('INSERT OR REPLACE INTO tg_chats (chat_id, username, name, manager, linked_at) VALUES (?,?,?,?,?)',
-                       (chat_id, user.get('username', ''), user.get('first_name', ''), row['manager'], db.now()))
+            db.execute('INSERT OR REPLACE INTO tg_chats (chat_id, username, name, manager, login, linked_at) VALUES (?,?,?,?,?,?)',
+                       (chat_id, user.get('username', ''), user.get('first_name', ''), row['manager'], row.get('login') or '', db.now()))
             bot.call('sendMessage', chat_id=chat_id, text='✅ Telegram подключён к кабинету менеджера Softline.\n\n'
                      'Сюда будут приходить эскалации и сообщения клиентов. Чтобы ответить клиенту, ответьте реплаем на уведомление. '
                      'Персональные данные клиентов здесь скрыты метками — полный текст в кабинете.')
@@ -222,7 +263,9 @@ def handle(update: dict[str, Any]) -> None:
     if not link:
         bot.call('sendMessage', chat_id=chat_id, text='Чтобы ответить клиенту, ответьте реплаем на уведомление о его обращении.')
         return
-    handoff.say(link['conv_id'], f'{chat["manager"] or "Менеджер Softline"} (Telegram)', text, via='telegram')
+    login = chat.get('login') or ''
+    handoff.say(link['conv_id'], f'{team.name_of(login) if login else chat["manager"] or "Менеджер Softline"} (Telegram)', text,
+                via='telegram', login=login)
     bot.call('sendMessage', chat_id=chat_id, text='✉️ Отправлено клиенту', reply_to_message_id=msg['message_id'])
 
 

@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { BadgeCheck, Bot, CreditCard, FileText, Headset, Loader2, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
+import { BadgeCheck, Bot, CreditCard, FileText, Headset, History, Loader2, MessageCircle, Minus, Send, ShieldCheck, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
 import { api, rub, type Message, type Quote } from './api'
 import Markdown from './Markdown'
 
 const CONV_KEY = 'sl_conversation'
+const HIST_KEY = 'sl_history'          // id диалогов этого браузера — для «Истории чатов»
+const HIST_DAYS = 30                   // сколько дней история видна на устройстве
+type Hist = { id: string; at: number }
+function histGet(): Hist[] {
+  try { return (JSON.parse(localStorage.getItem(HIST_KEY) || '[]') as Hist[]).filter(h => Date.now() - h.at < HIST_DAYS * 86400000) } catch { return [] }
+}
+function histSet(h: Hist[]) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 30))) } catch { /* приватный режим */ } }
+function histAdd(id: string) { histSet([{ id, at: Date.now() }, ...histGet().filter(h => h.id !== id)]) }
 const PROMPTS = [
   'Нужен MDaemon Standard',
   'Не знаю, что нужно: хотим защитить почту и файлы на 50 сотрудников',
@@ -74,6 +82,9 @@ export default function Chat() {
   const [rated, setRated] = useState<Record<number, number>>({})
   const [mgrTyping, setMgrTyping] = useState(false)
   const [mgrMode, setMgrMode] = useState(false)
+  const [min, setMin] = useState(false)          // свёрнут в иконку внизу справа
+  const [unread, setUnread] = useState(0)
+  const [hist, setHist] = useState<any[] | null>(null)
   const ws = useRef<WebSocket | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const [survey, setSurvey] = useState<{ resolved?: boolean; score?: number; comment: string; sent: boolean }>({ comment: '', sent: false })
@@ -101,13 +112,14 @@ export default function Chat() {
   const start = async () => {
     const d = await api<{ conversation_id: string; messages: Message[] }>('/api/chat/start', { body: { page_url: location.href } })
     try { localStorage.setItem(CONV_KEY, d.conversation_id) } catch { /* ignore */ }
+    histAdd(d.conversation_id)
     setCid(d.conversation_id); setMsgs(d.messages)
   }
 
   useEffect(() => {
     let id = ''
     try { id = localStorage.getItem(CONV_KEY) || '' } catch { /* ignore */ }
-    if (id) { setCid(id); load(id).catch(() => start()) } else start().catch(e => setErr(e.message))
+    if (id) { setCid(id); histAdd(id); load(id).catch(() => start()) } else start().catch(e => setErr(e.message))
   }, [])
 
   // Реалтайм: сообщения менеджера и системные события приходят по WebSocket; опрос раз в 15 с — запасной канал
@@ -123,6 +135,7 @@ export default function Chat() {
         if (d.type === 'message') {
           const m: Message = d.message
           if (m.role === 'manager') setMgrTyping(false)
+          if (m.role !== 'user') setUnread(u => u + 1)
           if (m.role === 'system') setMgrMode(/подключился/.test(m.content))
           setMsgs(cur => cur.some(x => x.id === m.id) ? cur : [...cur.filter(x => !(x.id < 0 && x.role === m.role && x.content === m.content)), m])
         }
@@ -176,8 +189,26 @@ export default function Chat() {
     try { await api(`/api/chat/${cid}/survey`, { body: { resolved: survey.resolved, score: survey.score, comment: survey.comment } }); setSurvey(v => ({ ...v, sent: true })) } catch (e) { setErr((e as Error).message) }
   }
 
+  const openHistory = async () => {
+    const ids = histGet().map(h => h.id)
+    try { const d = await api<{ items: any[] }>('/api/chat/history', { body: { ids } }); setHist(d.items) } catch (e) { setErr((e as Error).message) }
+  }
+  const openChat = (id: string) => {
+    try { localStorage.setItem(CONV_KEY, id) } catch { /* ignore */ }
+    histAdd(id); setHist(null); setMgrMode(false); setSurvey({ comment: '', sent: false }); setCid(id); load(id).catch(() => {})
+  }
+  const forget = async () => {
+    const ids = histGet().map(h => h.id)
+    await api('/api/chat/forget', { body: { ids } }).catch(() => {})
+    histSet([]); setHist(null); reset()
+  }
   const reset = () => { try { localStorage.removeItem(CONV_KEY) } catch { /* ignore */ } setMsgs([]); setSurvey({ comment: '', sent: false }); start() }
 
+  if (min) return (
+    <button className="chat-fab" onClick={() => { setMin(false); setUnread(0) }} aria-label="Открыть чат с ассистентом">
+      <MessageCircle size={26} />{unread ? <span className="fab-badge">{unread}</span> : null}
+    </button>
+  )
   return (
     <div className="chat">
       <div className="chat-head">
@@ -186,8 +217,23 @@ export default function Chat() {
         <div className="head-actions">
           <button className="btn sm ghost" onClick={operator} title="Переключиться на живого менеджера"><Headset size={14} /> Позвать оператора</button>
           <button className="link small" onClick={reset}>Новый диалог</button>
+          <button className="link small" onClick={openHistory} title="Ваши прошлые чаты на этом устройстве"><History size={13} /> История</button>
+          <button className="icon-btn" onClick={() => { setMin(true); setUnread(0) }} title="Свернуть в иконку" aria-label="Свернуть чат"><Minus size={16} /></button>
         </div>
       </div>
+      {hist && (
+        <div className="hist">
+          <div className="hist-head"><b>История чатов</b><button className="link small" onClick={() => setHist(null)}>Закрыть</button></div>
+          <p className="muted small">Ваши диалоги на этом устройстве за {HIST_DAYS} дней. Нажмите, чтобы открыть и продолжить. Персональные данные из чатов хранятся 180 дней, дальше — только обезличенная переписка.</p>
+          {hist.length === 0 && <div className="muted small">Пока нет прошлых чатов.</div>}
+          {hist.map(h => (
+            <button key={h.id} className={`hist-item ${h.id === cid ? 'on' : ''}`} onClick={() => openChat(h.id)}>
+              <span>{h.title}</span>
+              <span className="muted small">{new Date(h.updated_at * 1000).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{h.mode === 'manager' ? ' · с менеджером' : ''}{h.id === cid ? ' · открыт' : ''}</span>
+            </button>))}
+          {hist.length > 0 && <button className="link small danger" onClick={forget}>Удалить историю и мои данные из чатов</button>}
+        </div>
+      )}
       <div className="chat-body" ref={box}>
         {msgs.map(m => (
           m.role === 'system' ? <div key={m.id} className="sysmsg">{m.content}</div> :

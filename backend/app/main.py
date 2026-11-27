@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import agent, auth, catalog, db, discounts, handoff, hub, kb, learning, llm, payments, pii, quotes, telegram
+from app import agent, auth, catalog, db, discounts, handoff, hub, kb, learning, llm, payments, pii, quotes, team, telegram
 from app.config import ROOT_DIR, get_settings
 
 logger = logging.getLogger('support_agent')
@@ -31,12 +31,17 @@ async def lifespan(_: FastAPI):
     logging.basicConfig(level='INFO', format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     logging.getLogger('httpx').setLevel(logging.WARNING)  # URL запросов к Telegram содержит токен бота — не пишем их в журнал
     db.init_db()
+    team.init()
     n = kb.load_base()
     logger.info('База знаний: %d статей; каталог: %s; модели: %s', n, catalog.stats(), [p.name for p in llm.chain()])
 
     def refresh_loop() -> None:
         # Каталог: при первом старте — загрузка фида, дальше раз в сутки (по ответу заказчика этого достаточно)
         while True:
+            try:
+                purge_pii()
+            except Exception:  # noqa: BLE001
+                logger.exception('Очистка ПДн')
             st = catalog.stats()
             if not st.get('offers') or time.time() - get_settings().catalog_db.stat().st_mtime > 86400:
                 try:
@@ -50,6 +55,7 @@ async def lifespan(_: FastAPI):
     discounts.init()
     telegram.init()
     telegram.start()
+    team.start()
     import asyncio
 
     task = asyncio.create_task(hub.broadcaster())
@@ -155,6 +161,8 @@ def history(cid: str, after: int = 0) -> dict[str, Any]:
 async def message(cid: str, body: MessageIn, request: Request) -> dict[str, Any]:
     _limit(request)
     c = _conv(cid)
+    if not c.get('title'):  # заголовок диалога для кабинета — сразу по первому сообщению, не дожидаясь ответа агента
+        db.execute("UPDATE conversations SET title=? WHERE id=? AND (title IS NULL OR title='')", (pii.mask(cid, body.text.strip())[:80], cid))
     if c.get('mode') == 'manager':
         # Диалог ведёт менеджер: агент молчит, сообщение мгновенно уходит менеджеру по WebSocket
         mid = db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)',
@@ -168,6 +176,56 @@ async def message(cid: str, body: MessageIn, request: Request) -> dict[str, Any]
         raise HTTPException(503, 'Модель временно недоступна, попробуйте ещё раз') from e
 
 
+class HistoryIn(BaseModel):
+    ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+def _safe_ids(ids: list[str]) -> list[str]:
+    import re
+
+    return [i for i in ids if re.fullmatch(r'[a-z0-9]{6,40}', i)][:50]
+
+
+@app.post('/api/chat/history')
+def chat_history(body: HistoryIn) -> dict[str, Any]:
+    """История чатов клиента на этом устройстве: браузер хранит id своих диалогов (знание id = доступ, как к самому диалогу)."""
+    ids = _safe_ids(body.ids)
+    if not ids:
+        return {'items': [], 'retention_days': PII_RETENTION_DAYS}
+    q = ','.join('?' * len(ids))
+    rows = db.rows(f"SELECT c.id, c.title, c.created_at, c.updated_at, c.status, c.mode, "
+                   f"(SELECT count(*) FROM messages m WHERE m.conv_id=c.id AND m.role='user') AS n_user "
+                   f"FROM conversations c WHERE c.id IN ({q}) ORDER BY c.updated_at DESC", tuple(ids))
+    for r in rows:
+        r['title'] = pii.unmask(r['id'], r['title'] or '') or 'Диалог без сообщений'
+    return {'items': [r for r in rows if r['n_user']], 'retention_days': PII_RETENTION_DAYS}
+
+
+@app.post('/api/chat/forget')
+def chat_forget(body: HistoryIn) -> dict[str, Any]:
+    """«Удалить историю»: персональные данные этих диалогов удаляются (таблица соответствия меток), переписка остаётся
+    только в обезличенном виде — для качества и обучения агента. Клиент убирает диалоги из списка на устройстве."""
+    ids = _safe_ids(body.ids)
+    for cid in ids:
+        db.execute('DELETE FROM pii WHERE conv_id=?', (cid,))
+        db.execute("UPDATE conversations SET page_url='' WHERE id=?", (cid,))
+    return {'forgotten': len(ids)}
+
+
+PII_RETENTION_DAYS = 180  # срок хранения персональных данных из чата; дальше переписка хранится обезличенной
+
+
+def purge_pii() -> int:
+    """Ежедневно: у диалогов без активности дольше PII_RETENTION_DAYS удаляются персональные данные (152-ФЗ, ст. 5 ч. 7)."""
+    old = db.rows('SELECT DISTINCT p.conv_id FROM pii p JOIN conversations c ON c.id=p.conv_id WHERE c.updated_at < ?',
+                  (db.now() - PII_RETENTION_DAYS * 86400,))
+    for r in old:
+        db.execute('DELETE FROM pii WHERE conv_id=?', (r['conv_id'],))
+    if old:
+        logger.info('Удалены ПДн старых диалогов: %d', len(old))
+    return len(old)
+
+
 @app.post('/api/chat/{cid}/operator')
 def call_operator(cid: str) -> dict[str, Any]:
     """Кнопка «Позвать оператора»: клиент сам переключается на менеджера (требование заказчика)."""
@@ -178,7 +236,9 @@ def call_operator(cid: str) -> dict[str, Any]:
     summary = 'Клиент нажал «Позвать оператора». Последние вопросы: ' + (' | '.join(reversed(last)) or 'диалог только начат')
     eid = db.execute('INSERT INTO escalations (conv_id, reason, category, summary, created_at) VALUES (?,?,?,?,?)',
                      (cid, 'client_request', agent.REASON_RU['client_request'], summary[:2000], db.now()))
-    db.execute("UPDATE conversations SET status='escalated', updated_at=? WHERE id=?", (db.now(), cid))
+    db.execute("UPDATE conversations SET status='escalated', updated_at=?, title=CASE WHEN title IS NULL OR title='' "
+               "THEN 'Клиент позвал оператора' ELSE title END WHERE id=?", (db.now(), cid))
+    team.dispatch()
     text = 'Подключаю менеджера Softline — он ответит здесь же, в чате. Обычно это занимает пару минут в рабочее время.'
     mid = db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
                      (cid, 'assistant', text, db.dumps({'escalation': {'id': eid, 'reason': 'Клиент просит менеджера'}}), db.now()))
@@ -304,10 +364,67 @@ def do_login(body: LoginIn, request: Request) -> dict[str, str]:
     return auth.login(body.login, body.password, request.client.host if request.client else '-')
 
 
+class InviteIn(BaseModel):
+    code: str = Field(min_length=10, max_length=100)
+
+
+@app.post('/api/auth/invite')
+def do_invite(body: InviteIn, request: Request) -> dict[str, str]:
+    """Вход нового менеджера по одноразовой ссылке-приглашению от администратора."""
+    return auth.by_invite(body.code, request.client.host if request.client else '-')
+
+
+# ------------------------------------------------------------------ профиль, присутствие, команда
+
+class PresenceIn(BaseModel):
+    status: str | None = Field(None, pattern='^(online|away|offline)$')
+
+
+class PasswordIn(BaseModel):
+    password: str = Field(min_length=8, max_length=200)
+
+
+@app.get('/api/manager/me')
+def me(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    u = team.get(m['login'])
+    return {**team.public(u), 'load': team.load(m['login'])}
+
+
+@app.post('/api/manager/presence')
+def presence(body: PresenceIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Сигнал «кабинет открыт» (раз в 30 с) и смена статуса: В сети / Перерыв / Не в сети."""
+    return {**team.heartbeat(m['login'], body.status), 'load': team.load(m['login'])}
+
+
+@app.post('/api/manager/password')
+def set_password(body: PasswordIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    from app.config import get_settings
+
+    s = get_settings()
+    if m['login'] in (s.manager_login, s.jury_login):
+        raise HTTPException(400, 'Пароль этой учётной записи задаётся в .env на сервере')
+    team.set_password(m['login'], body.password)
+    return {'ok': True}
+
+
+@app.get('/api/manager/team')
+def team_list(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Коллеги со статусом и нагрузкой — для «Передать» и «Позвать коллегу», очередь обращений."""
+    return {'members': [{k: u[k] for k in ('login', 'name', 'role', 'online', 'status', 'status_ru', 'load', 'max_load', 'active')}
+                        for u in team.roster() if u['active']],
+            'queue': db.one("SELECT count(*) AS n FROM escalations WHERE status='open' AND (assignee IS NULL OR assignee='')")['n'],
+            'auto_assign': team.auto_assign(), 'reassign_seconds': team.reassign_seconds()}
+
+
 @app.get('/api/manager/escalations')
 def escalations(status: str = 'open', m: dict = Depends(auth.manager)) -> list[dict[str, Any]]:
-    sql = 'SELECT e.*, c.title, c.scenario FROM escalations e JOIN conversations c ON c.id=e.conv_id'
-    rs = db.rows(sql + (' WHERE e.status=?' if status != 'all' else '') + ' ORDER BY e.id DESC LIMIT 200', (status,) if status != 'all' else ())
+    sql = 'SELECT e.*, c.title, c.scenario, u.name AS assignee_name FROM escalations e JOIN conversations c ON c.id=e.conv_id LEFT JOIN users u ON u.login=e.assignee'
+    if status == 'mine':
+        rs = db.rows(sql + " WHERE e.status='open' AND e.assignee=? ORDER BY e.id DESC LIMIT 200", (m['login'],))
+    elif status == 'queue':
+        rs = db.rows(sql + " WHERE e.status='open' AND (e.assignee IS NULL OR e.assignee='') ORDER BY e.id LIMIT 200")
+    else:
+        rs = db.rows(sql + (' WHERE e.status=?' if status != 'all' else '') + ' ORDER BY e.id DESC LIMIT 200', (status,) if status != 'all' else ())
     for r in rs:
         r['summary'] = pii.unmask(r['conv_id'], r['summary'])
         r['title'] = pii.unmask(r['conv_id'], r['title'] or '')
@@ -320,9 +437,10 @@ def answer(eid: int, body: AnswerIn, m: dict = Depends(auth.manager)) -> dict[st
     if not e:
         raise HTTPException(404, 'Эскалация не найдена')
     db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
-               (e['conv_id'], 'manager', body.answer, db.dumps({'manager': m['name']}), db.now()))
-    db.execute("UPDATE escalations SET status='answered', answer=?, manager=?, add_to_kb=?, answered_at=? WHERE id=?",
-               (body.answer, m['name'], int(body.add_to_kb), db.now(), eid))
+               (e['conv_id'], 'manager', body.answer, db.dumps({'manager': m['name'], 'login': m['login']}), db.now()))
+    db.execute("UPDATE escalations SET status='answered', answer=?, manager=?, assignee=?, add_to_kb=?, answered_at=? WHERE id=?",
+               (body.answer, m['name'], m['login'], int(body.add_to_kb), db.now(), eid))
+    team._log(e['conv_id'], eid, 'answer', m['login'])
     db.execute('UPDATE conversations SET status=?, updated_at=? WHERE id=?', ('answered' if body.close else 'escalated', db.now(), e['conv_id']))
     kb_id = None
     if body.add_to_kb:
@@ -335,7 +453,9 @@ def answer(eid: int, body: AnswerIn, m: dict = Depends(auth.manager)) -> dict[st
 @app.get('/api/manager/conversations')
 def conversations(m: dict = Depends(auth.manager)) -> list[dict[str, Any]]:
     rs = db.rows('SELECT c.*, (SELECT count(*) FROM messages WHERE conv_id=c.id) AS n_messages, '
-                 '(SELECT round(sum(cost_rub), 4) FROM llm_calls WHERE conv_id=c.id) AS cost_rub '
+                 '(SELECT round(sum(cost_rub), 4) FROM llm_calls WHERE conv_id=c.id) AS cost_rub, '
+                 "(SELECT u.name FROM escalations e JOIN users u ON u.login=e.assignee WHERE e.conv_id=c.id AND e.status='open' LIMIT 1) AS assignee_name, "
+                 "(SELECT group_concat(login) FROM conv_managers WHERE conv_id=c.id) AS participants "
                  'FROM conversations c ORDER BY c.updated_at DESC LIMIT 300')
     for r in rs:
         r['title'] = pii.unmask(r['id'], r['title'] or '')
@@ -349,7 +469,9 @@ def conversation(cid: str, m: dict = Depends(auth.manager)) -> dict[str, Any]:
             'tool_calls': db.rows('SELECT tool, args, substr(result,1,1500) AS result, ms, created_at FROM tool_calls WHERE conv_id=? ORDER BY id', (cid,)),
             'llm_calls': db.rows('SELECT provider, model, tokens_in, tokens_out, cost_rub, ms, ok, error, created_at FROM llm_calls WHERE conv_id=? ORDER BY id', (cid,)),
             'quotes': db.rows('SELECT id, number, total, status, created_at FROM quotes WHERE conv_id=?', (cid,)),
-            'pii_masked': db.rows('SELECT token, kind FROM pii WHERE conv_id=?', (cid,))}
+            'pii_masked': db.rows('SELECT token, kind FROM pii WHERE conv_id=?', (cid,)),
+            'participants': team.participants(cid),
+            'team_log': db.rows('SELECT action, actor, target, created_at FROM team_log WHERE conv_id=? ORDER BY id', (cid,))}
 
 
 class ManagerMessageIn(BaseModel):
@@ -364,31 +486,192 @@ class TakeoverIn(BaseModel):
 def takeover(cid: str, body: TakeoverIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
     """Менеджер берёт диалог (агент замолкает) или возвращает его агенту."""
     _conv(cid)
-    return handoff.take(cid, m['name'], body.on)
+    return handoff.take(cid, m['name'], body.on, login=m['login'])
 
 
 @app.post('/api/manager/conversations/{cid}/message')
 def manager_message(cid: str, body: ManagerMessageIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
     _conv(cid)
-    return {'id': handoff.say(cid, m['name'], body.text)}
+    return {'id': handoff.say(cid, m['name'], body.text, login=m['login'])}
+
+
+class ColleagueIn(BaseModel):
+    login: str = Field(min_length=1, max_length=64)
+
+
+@app.post('/api/manager/conversations/{cid}/transfer')
+def transfer(cid: str, body: ColleagueIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Передать диалог коллеге (он становится ведущим)."""
+    _conv(cid)
+    try:
+        return handoff.transfer(cid, m, body.login)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.post('/api/manager/conversations/{cid}/invite')
+def invite_colleague(cid: str, body: ColleagueIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Позвать коллегу в диалог помощником — оба видят переписку и могут отвечать клиенту."""
+    _conv(cid)
+    try:
+        return handoff.invite(cid, m, body.login)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.post('/api/manager/conversations/{cid}/leave')
+def leave_dialog(cid: str, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    team.leave(cid, m['login'])
+    team._log(cid, None, 'leave', m['login'])
+    return {'participants': team.participants(cid)}
+
+
+@app.post('/api/manager/escalations/{eid}/claim')
+def claim(eid: int, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """«Взять себе» обращение из очереди или у коллеги — не дожидаясь автоназначения."""
+    e = db.one('SELECT * FROM escalations WHERE id=?', (eid,))
+    if not e:
+        raise HTTPException(404, 'Эскалация не найдена')
+    team.assign(e, m['login'], actor=m['login'])
+    return {'assignee': m['login']}
+
+
+class CloseIn(BaseModel):
+    note: str = Field('', max_length=300)
+
+
+@app.post('/api/manager/escalations/{eid}/close')
+def close_escalation(eid: int, body: CloseIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    """Закрыть без ответа (дубль, спам, клиент ушёл) — обращение уходит из очереди, данные сохраняются."""
+    e = db.one('SELECT * FROM escalations WHERE id=?', (eid,))
+    if not e:
+        raise HTTPException(404, 'Эскалация не найдена')
+    db.execute("UPDATE escalations SET status='closed', manager=?, answer=?, answered_at=? WHERE id=? AND status='open'",
+               (m['name'], body.note or 'Закрыто без ответа', db.now(), eid))
+    team._log(e['conv_id'], eid, 'close', m['login'])
+    return {'status': 'closed'}
+
+
+class StaleIn(BaseModel):
+    older_than_hours: float = Field(24, ge=0.5, le=24 * 90)
+
+
+# ------------------------------------------------------------------ администратор: команда и распределение
+
+
+@app.post('/api/admin/escalations/close-stale')
+def close_stale(body: StaleIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    """Разобрать очередь: закрыть открытые обращения старше N часов (клиент давно ушёл). Статус меняется, данные остаются."""
+    rs = db.rows("SELECT id, conv_id FROM escalations WHERE status='open' AND created_at < ?", (db.now() - body.older_than_hours * 3600,))
+    for e in rs:
+        db.execute("UPDATE escalations SET status='closed', manager=?, answer='Закрыто администратором: устарело', answered_at=? WHERE id=?",
+                   (m['name'], db.now(), e['id']))
+        team._log(e['conv_id'], e['id'], 'close', m['login'])
+    team.dispatch()
+    return {'closed': len(rs)}
+
+class UserIn(BaseModel):
+    login: str = Field(min_length=3, max_length=40, pattern='^[a-zA-Z0-9._-]+$')
+    name: str = Field(min_length=2, max_length=80)
+    role: str = Field('manager', pattern='^(admin|manager)$')
+    max_load: int = Field(5, ge=1, le=30)
+    routing: bool = True
+
+
+class UserPatch(BaseModel):
+    name: str | None = Field(None, min_length=2, max_length=80)
+    role: str | None = Field(None, pattern='^(admin|manager)$')
+    max_load: int | None = Field(None, ge=1, le=30)
+    routing: bool | None = None
+    active: bool | None = None
+    status: str | None = Field(None, pattern='^(online|away|offline)$')
+
+
+class RoutingIn(BaseModel):
+    auto_assign: bool | None = None
+    reassign_seconds: int | None = Field(None, ge=60, le=3600)
+
+
+@app.get('/api/admin/users')
+def admin_users(m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    return {'users': team.roster(), 'auto_assign': team.auto_assign(), 'reassign_seconds': team.reassign_seconds(),
+            'queue': db.one("SELECT count(*) AS n FROM escalations WHERE status='open' AND (assignee IS NULL OR assignee='')")['n'],
+            'open': db.one("SELECT count(*) AS n FROM escalations WHERE status='open'")['n']}
+
+
+@app.post('/api/admin/users')
+def admin_create(body: UserIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    try:
+        return team.create(body.login, body.name, body.role, body.max_load, body.routing, m['login'])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.patch('/api/admin/users/{login}')
+def admin_update(login: str, body: UserPatch, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    from app.config import get_settings
+
+    if not team.get(login):
+        raise HTTPException(404, 'Нет такого пользователя')
+    if login == m['login'] and (body.active is False or body.role == 'manager'):
+        raise HTTPException(400, 'Нельзя отключить себя или снять с себя роль администратора')
+    if login in (get_settings().manager_login, get_settings().jury_login) and (body.active is False or body.role == 'manager'):
+        raise HTTPException(400, 'Учётка из .env — нельзя отключить или понизить')
+    f = body.model_dump()
+    for k in ('routing', 'active'):
+        if f[k] is not None:
+            f[k] = int(f[k])
+    team._log('', None, 'user_update', m['login'], login)
+    return team.update(login, **f)
+
+
+@app.post('/api/admin/users/{login}/invite')
+def admin_reinvite(login: str, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    if not team.get(login):
+        raise HTTPException(404, 'Нет такого пользователя')
+    return team.new_invite(login)
+
+
+@app.post('/api/admin/routing')
+def admin_routing(body: RoutingIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    if body.auto_assign is not None:
+        discounts.set_setting('auto_assign', int(body.auto_assign))
+    if body.reassign_seconds is not None:
+        discounts.set_setting('reassign_seconds', body.reassign_seconds)
+    team.dispatch()
+    return {'auto_assign': team.auto_assign(), 'reassign_seconds': team.reassign_seconds()}
+
+
+@app.get('/api/admin/log')
+def admin_log(m: dict = Depends(auth.admin)) -> list[dict[str, Any]]:
+    return db.rows('SELECT l.*, u.name AS actor_name, t.name AS target_name FROM team_log l LEFT JOIN users u ON u.login=l.actor '
+                   'LEFT JOIN users t ON t.login=l.target ORDER BY l.id DESC LIMIT 200')
 
 
 # ------------------------------------------------------------------ Telegram-бот менеджера
 
 @app.get('/api/manager/telegram')
 def telegram_status(m: dict = Depends(auth.manager)) -> dict[str, Any]:
-    return {'enabled': telegram.enabled(), 'bot': telegram.bot.username, 'chats': telegram.chats(), 'outbox': telegram.outbox_stats()}
+    chats = telegram.chats()
+    for c in chats:
+        c['manager'] = team.name_of(c['login']) if c.get('login') else c['manager']
+    if m['role'] != 'admin':  # менеджер видит свои чаты, администратор — все
+        chats = [c for c in chats if c.get('login') == m['login']]
+    return {'enabled': telegram.enabled(), 'bot': telegram.bot.username, 'chats': chats, 'outbox': telegram.outbox_stats()}
 
 
 @app.post('/api/manager/telegram/link')
 def telegram_link(m: dict = Depends(auth.manager)) -> dict[str, Any]:
     if not telegram.enabled():
         raise HTTPException(400, 'Бот не настроен: администратор должен указать TELEGRAM_BOT_TOKEN')
-    return telegram.link_code(m['name'])
+    return telegram.link_code(m['name'], m['login'])
 
 
 @app.delete('/api/manager/telegram/chats/{chat_id}')
 def telegram_unlink(chat_id: int, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    c = db.one('SELECT login FROM tg_chats WHERE chat_id=?', (chat_id,))
+    if c and m['role'] != 'admin' and c['login'] != m['login']:
+        raise HTTPException(403, 'Можно отключить только свой Telegram')
     telegram.unlink(chat_id)
     return {'ok': True}
 
@@ -481,6 +764,11 @@ def metrics(m: dict = Depends(auth.manager)) -> dict[str, Any]:
         'resolved_without_human': closed, 'closed_with_quote_approval': closed_approved,
         'automation_rate': round(closed / convs, 3) if convs else 0,
         'sla': sla_stats(),
+        'team': {'online': sum(1 for u in team.roster() if u['online']), 'members': db.one('SELECT count(*) AS n FROM users WHERE active=1')['n'],
+                 'queue': one("SELECT count(*) v FROM escalations WHERE status='open' AND (assignee IS NULL OR assignee='')"),
+                 'by_manager': db.rows("SELECT coalesce(u.name, e.manager) AS name, count(*) AS answered, "
+                                       "round(avg(e.answered_at - e.created_at)) AS avg_sec FROM escalations e LEFT JOIN users u ON u.login=e.assignee "
+                                       "WHERE e.status='answered' AND e.answered_at IS NOT NULL GROUP BY 1 ORDER BY answered DESC")},
         'escalations_open': one("SELECT count(*) v FROM escalations WHERE status='open'"),
         'escalations_by_reason': db.rows('SELECT category, count(*) AS n FROM escalations GROUP BY category ORDER BY n DESC'),
         'scenarios': db.rows("SELECT CASE scenario WHEN '' THEN 'other' ELSE scenario END AS scenario, count(*) AS n FROM conversations "
@@ -565,7 +853,7 @@ def discounts_delete(rid: int, m: dict = Depends(auth.manager)) -> dict[str, Any
 
 
 @app.post('/api/manager/settings')
-def settings_save(body: SettingsIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+def settings_save(body: SettingsIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
     try:
         if body.agent_discount_cap is not None:
             discounts.set_agent_cap(body.agent_discount_cap)

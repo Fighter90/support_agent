@@ -54,6 +54,19 @@ await page.goto(`${BASE}/manager`)
 await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (!/token/i.test(k)) localStorage.removeItem(k) })
 await page.goto(`${BASE}/__demo`)
 let L = page.frameLocator('#cl'), R = page.frameLocator('#mg')
+// Команда: Анна Смирнова «в сети» в своём браузере (вход по ссылке-приглашению), Игорь — не в сети; очередь разобрана
+const adminApi = (path, body, method) => page.evaluate(async ([path, body, method]) => {
+  const t = localStorage.getItem('sl_manager_token')
+  return (await fetch(path, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: body ? JSON.stringify(body) : undefined })).json()
+}, [path, body, method])
+await adminApi('/api/admin/escalations/close-stale', { older_than_hours: 0.5 })
+await adminApi('/api/admin/users/igor.petrov', { status: 'offline' }, 'PATCH')
+const inv = await adminApi('/api/admin/users/anna.smirnova/invite', {})
+const side = await chromium.launch({ channel: 'chrome', headless: true })
+const anna = await (await side.newContext()).newPage()
+await anna.goto(`${BASE}/manager?invite=${inv.invite_code}`)
+await anna.locator('.statusbar select').waitFor({ timeout: 30000 })
+await anna.locator('.statusbar select').selectOption('online')
 await L.locator('.chat-input textarea, .chat-input input').first().waitFor({ timeout: 30000 })
 await R.getByText('Живой чат').first().waitFor({ timeout: 30000 })
 await page.waitForTimeout(1200)
@@ -113,22 +126,24 @@ if (await form.count()) {
 }
 await say('requisites', 300)
 
-// 4. Сценарий «знаю продукт» и вопрос после покупки
-await ask('Нужен MDaemon Standard на 10 пользователей, продление на год')
-await say('known', 300)
-await ask('Мы вчера оплатили счёт. Когда придёт ключ?')
+// 4. Вопрос после покупки
+await ask('Где найти закрывающие документы по оплаченному заказу?')
 await say('kb', 300)
 
-// 5. Позвать оператора → кабинет и Telegram
-await R.locator('aside button', { hasText: 'Живой чат' }).click()
+// 5. Позвать оператора → автоназначение в команде → Telegram
+await R.locator('aside button', { hasText: 'Команда' }).click()
 await L.getByText('Позвать оператора').first().click()
-await page.waitForTimeout(1500)
+await page.waitForTimeout(1200)
 await say('operator', 200)
+await R.locator('aside button', { hasText: 'Эскалации' }).click()
+await R.locator('.seg button', { hasText: 'Все новые' }).click().catch(() => {})
+await page.waitForTimeout(600)
+await say('queue', 200)
 
 // 6. Настоящий Telegram менеджера: эскалация от бота, ответ реплаем
 const sent = Date.now()
 await page.goto('https://web.telegram.org/k/#@SoftlineSupportBot')
-const esc = page.locator('.bubble', { hasText: 'Мы вчера оплатили счёт' }).filter({ hasText: 'Эскалация' }).last()
+const esc = page.locator('.bubble', { hasText: 'Назначено' }).filter({ hasText: 'Эскалация' }).last()
 await esc.waitFor({ timeout: 45000 }).catch(() => {})
 await page.waitForTimeout(800)
 const tgSay = say('tg1', 200)
@@ -139,7 +154,7 @@ await page.locator('.btn-menu-item', { hasText: /Ответить|Reply/ }).firs
 await page.waitForTimeout(400)
 const box = page.locator('.input-message-input[contenteditable="true"]').last()
 await box.click().catch(() => {})
-await page.keyboard.type('Здравствуйте! Я менеджер Softline. Скидку согласую, пришлю закрывающие документы сегодня.', { delay: 22 })
+await page.keyboard.type('Здравствуйте! Это руководитель поддержки Softline. Пришлю закрывающие документы сегодня, Анна на связи.', { delay: 22 })
 await tgSay
 await page.keyboard.press('Enter')
 await page.waitForTimeout(3000)
@@ -158,6 +173,8 @@ await R.locator('aside button', { hasText: 'Метрики' }).click().catch(() 
 await page.waitForTimeout(800)
 await say('outro', 1500)
 
+await anna.locator('.statusbar select').selectOption('offline').catch(() => {})
+await side.close()
 timeline.end = now()
 fs.writeFileSync(OUT + 'timeline.json', JSON.stringify(timeline, null, 1))
 const v = page.video()

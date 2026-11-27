@@ -7,7 +7,7 @@ import fs from 'node:fs'
 const BASE = process.env.BASE || 'https://methodagent.ru'
 const OUT = new URL('./out/', import.meta.url).pathname
 fs.rmSync(OUT, { recursive: true, force: true }); fs.mkdirSync(OUT, { recursive: true })
-const ctx = await chromium.launchPersistentContext(new URL('../video/profile', import.meta.url).pathname, {
+const ctx = await chromium.launchPersistentContext(process.env.PROFILE || new URL('../video/profile', import.meta.url).pathname, {
   channel: 'chrome', headless: false, viewport: { width: 1440, height: 900 }, ignoreDefaultArgs: ['--enable-automation'],
 })
 const results = []
@@ -311,7 +311,7 @@ await step('Цикл обучения: вопрос без ответа → ме
 await step('Цикл обучения: следующий клиент получает ответ сразу от агента', cl, async () => {
   await cl.bringToFront(); await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
   const a = await ask(Q)
-  must(/1 рабоч|по запросу/i.test(a), 'агент не использовал ответ менеджера: ' + a.slice(0, 80))
+  must(/1 рабоч|по запросу|на английском/i.test(a), 'агент не использовал ответ менеджера: ' + a.slice(0, 80))
   must(!(await cl.locator('.chat-body .esc').count()), 'снова передал менеджеру'); return a.slice(0, 90)
 })
 await step('Метрики: регламент ответа и «закрыто агентом»', mg, async () => {

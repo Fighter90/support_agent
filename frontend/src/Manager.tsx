@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsUp } from 'lucide-react'
-import { HelpCircle, Percent, Send as TgIcon } from 'lucide-react'
+import { HelpCircle, Percent, Send as TgIcon, UserCog, Users } from 'lucide-react'
+import { ColleaguePick, MeCtx, Profile, StatusBar, TeamAdmin, useMe, usePresence } from './Team'
 import Help from './Help'
 import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram' | 'help' | 'discounts'
+type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram' | 'help' | 'discounts' | 'team' | 'profile'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
   const [login, setLogin] = useState('manager')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get('invite')
+    if (!code) return
+    api<{ token: string }>('/api/auth/invite', { body: { code } })
+      .then(d => { setToken(d.token); history.replaceState(null, '', '/manager'); onOk() })
+      .catch(x => setErr((x as Error).message))
+  }, [])
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setErr('')
     try { const d = await api<{ token: string }>('/api/auth/login', { body: { login, password } }); setToken(d.token); onOk() } catch (x) { setErr((x as Error).message) }
@@ -21,8 +29,8 @@ function Login({ onOk }: { onOk: () => void }) {
     <div className="login">
       <form onSubmit={submit} className="panel">
         <img src="/logo.png" alt="Софтлайн" className="login-logo" />
-        <h2>Кабинет менеджера</h2>
-        <p className="muted small">Сложные обращения, КП, база знаний и журнал агента</p>
+        <h2>Кабинет поддержки</h2>
+        <p className="muted small">Менеджеры и администратор: обращения, КП, база знаний, команда. Новый сотрудник входит по ссылке-приглашению от администратора.</p>
         <input value={login} onChange={e => setLogin(e.target.value)} placeholder="Логин" />
         <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Пароль" type="password" />
         {err && <div className="err">{err}</div>}
@@ -90,7 +98,8 @@ function LiveChat() {
   const [text, setText] = useState('')
   const [typing, setTyping] = useState(false)
   const [unread, setUnread] = useState<Record<string, number>>({})
-  const [online, setOnline] = useState(1)
+  const [mine, setMine] = useState(false)
+  const me = useMe()
   const body = useRef<HTMLDivElement>(null)
   const loadList = () => api<any[]>('/api/manager/conversations', { auth: true }).then(setList).catch(() => {})
   const loadConv = (cid: string) => api(`/api/manager/conversations/${cid}`, { auth: true }).then(setConv).catch(() => {})
@@ -98,7 +107,6 @@ function LiveChat() {
   useEffect(() => { if (sel) { loadConv(sel); setUnread(u => ({ ...u, [sel]: 0 })) } }, [sel])
   useEffect(() => { body.current?.scrollTo({ top: body.current.scrollHeight }) }, [conv, typing])
   useEvents(e => {
-    if (e.type === 'presence') setOnline(e.managers_online)
     if (e.type === 'typing' && e.conv_id === sel) { setTyping(true); setTimeout(() => setTyping(false), 3000) }
     if (e.type === 'message' && e.conv_id) {
       if (e.conv_id === sel) { setTyping(false); setConv((c: any) => c && !c.messages.some((m: any) => m.id === e.message.id) ? { ...c, messages: [...c.messages, e.message] } : c) }
@@ -113,15 +121,17 @@ function LiveChat() {
     setConv((c: any) => c ? { ...c, mode: 'manager' } : c)
   }
   const takeover = async (on: boolean) => { await api(`/api/manager/conversations/${sel}/takeover`, { auth: true, body: { on } }); loadConv(sel); loadList() }
-  const visible = list.filter(c => c.n_messages > 1)
+  const colleague = async (kind: 'transfer' | 'invite', login: string) => { await api(`/api/manager/conversations/${sel}/${kind}`, { auth: true, body: { login } }); loadConv(sel); loadList() }
+  const visible = list.filter(c => c.n_messages > 1 && (!mine || c.manager_login === me?.login || (c.participants || '').split(',').includes(me?.login || '')))
+  const parts: any[] = conv?.participants || []
   return (
     <div className="split">
       <div className="list">
-        <div className="muted small"><span className="dot" /> Менеджеров онлайн: {online} · обновление в реальном времени</div>
+        <div className="seg"><button className={!mine ? 'on' : ''} onClick={() => setMine(false)}>Все диалоги</button><button className={mine ? 'on' : ''} onClick={() => setMine(true)}>Мои</button></div>
         {visible.map(c => (
           <button key={c.id} className={`item ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(c.id)}>
             <div className="item-top">
-              <span className={`tag ${c.status === 'escalated' ? 'red' : c.mode === 'manager' ? 'green' : ''}`}>{c.mode === 'manager' ? `Ведёт ${c.manager || 'менеджер'}` : c.status === 'escalated' ? 'Ждёт менеджера' : 'Агент'}</span>
+              <span className={`tag ${c.status === 'escalated' ? 'red' : c.mode === 'manager' ? 'green' : ''}`}>{c.mode === 'manager' ? `Ведёт ${c.manager || 'менеджер'}` : c.status === 'escalated' ? (c.assignee_name ? `Назначен: ${c.assignee_name}` : 'В очереди') : 'Агент'}</span>
               <span>{unread[c.id] ? <span className="unread">{unread[c.id]}</span> : null} <span className="muted small">{dt(c.updated_at)}</span></span>
             </div>
             <div className="item-title">{c.title || 'Без сообщений'}</div>
@@ -133,8 +143,12 @@ function LiveChat() {
           <div className="live">
             <div className="live-head">
               <b>{conv.title?.slice(0, 60) || conv.id}</b>
-              <span className={`tag ${conv.mode === 'manager' ? 'green' : ''}`}>{conv.mode === 'manager' ? 'Ведёт менеджер' : 'Отвечает агент'}</span>
+              <span className={`tag ${conv.mode === 'manager' ? 'green' : ''}`}>{conv.mode === 'manager' ? `Ведёт ${conv.manager || 'менеджер'}` : 'Отвечает агент'}</span>
+              {parts.filter(x => x.role === 'helper').map(x => <span key={x.login} className="tag">помогает {x.name || x.login}</span>)}
               <span className="spacer" />
+              {conv.mode === 'manager' && conv.manager_login !== me?.login && <button className="btn sm" onClick={() => takeover(true)}><Headset size={14} /> Забрать себе</button>}
+              {conv.mode === 'manager' && <ColleaguePick label="Передать" exclude={[conv.manager_login]} onPick={l => colleague('transfer', l)} />}
+              {conv.mode === 'manager' && <ColleaguePick label="Позвать коллегу" exclude={parts.map(x => x.login)} onPick={l => colleague('invite', l)} />}
               {conv.mode === 'manager'
                 ? <button className="btn sm ghost" onClick={() => takeover(false)}><Bot size={14} /> Вернуть агенту</button>
                 : <button className="btn sm" onClick={() => takeover(true)}><Headset size={14} /> Взять диалог</button>}
@@ -164,7 +178,8 @@ function LiveChat() {
 }
 
 function Escalations() {
-  const [status, setStatus] = useState('open')
+  const [status, setStatus] = useState('mine')
+  const me = useMe()
   const [items, setItems] = useState<any[]>([])
   const [sel, setSel] = useState<any>(null)
   const [answer, setAnswer] = useState('')
@@ -180,12 +195,13 @@ function Escalations() {
   return (
     <div className="split">
       <div className="list">
-        <div className="seg">{['open', 'answered', 'all'].map(s => <button key={s} className={status === s ? 'on' : ''} onClick={() => setStatus(s)}>{{ open: 'Новые', answered: 'Отвеченные', all: 'Все' }[s]}</button>)}</div>
+        <div className="seg">{['mine', 'queue', 'open', 'answered', 'all'].map(s => <button key={s} className={status === s ? 'on' : ''} onClick={() => setStatus(s)}>{({ mine: 'Мои', queue: 'Очередь', open: 'Все новые', answered: 'Отвеченные', all: 'Все' } as any)[s]}</button>)}</div>
         {items.length === 0 && <div className="muted pad">Нет обращений</div>}
         {items.map(e => (
           <button key={e.id} className={`item ${sel?.id === e.id ? 'on' : ''}`} onClick={() => { setSel(e); setMsg('') }}>
             <div className="item-top"><span className="tag red">{e.category}</span><span className="muted small">{dt(e.created_at)}{e.status === 'open' && <Wait since={e.created_at} />}</span></div>
             <div className="item-title">{e.summary}</div>
+            {e.status === 'open' && <div className="muted small">{e.assignee_name ? `Назначен: ${e.assignee_name}` : 'В очереди — свободных нет'}{e.reassigns ? ` · переназначений: ${e.reassigns}` : ''}</div>}
           </button>
         ))}
       </div>
@@ -194,7 +210,13 @@ function Escalations() {
         {!sel && !msg && <div className="muted pad">Выберите обращение. Агент уже собрал резюме и параметры — менеджер решает только сложное.</div>}
         {sel && (
           <>
-            <div className="panel"><b>Резюме агента:</b> {sel.summary}</div>
+            <div className="panel"><b>Резюме агента:</b> {sel.summary}
+              {sel.status === 'open' && <div className="row" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
+                <span className="muted small">{sel.assignee_name ? `Исполнитель: ${sel.assignee_name}` : 'В очереди'}</span>
+                {sel.assignee !== me?.login && <button className="btn sm" onClick={async () => { await api(`/api/manager/escalations/${sel.id}/claim`, { auth: true, method: 'POST' }); setSel({ ...sel, assignee: me?.login, assignee_name: me?.name }); load() }}>Взять себе</button>}
+                <button className="btn sm ghost" onClick={async () => { await api(`/api/manager/escalations/${sel.id}/close`, { auth: true, body: { note: '' } }); setMsg('Обращение закрыто без ответа'); setSel(null); load() }}>Закрыть без ответа</button>
+              </div>}
+            </div>
             {sel.status === 'open' && (
               <div className="panel answer">
                 <textarea rows={4} value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Ответ клиенту — придёт в его чат" />
@@ -354,6 +376,10 @@ function Metrics() {
           <div className="kv"><span>Цель для менеджера по эскалации</span><span>{sec(m.sla?.target_sec ?? 120)}</span></div>
           <div className="kv"><span>Просрочено сейчас</span><span>{m.sla?.escalations_overdue ?? 0}</span></div>
           <div className="kv"><span>«Закрыто агентом» (с подтверждением КП одной кнопкой)</span><span>{m.resolved_without_human} (из них КП {m.closed_with_quote_approval})</span></div></div>
+        <div className="panel"><b>Команда</b>
+          <div className="kv"><span>В сети / всего сотрудников</span><span>{m.team?.online ?? 0} / {m.team?.members ?? 0}</span></div>
+          <div className="kv"><span>Обращений в очереди</span><span>{m.team?.queue ?? 0}</span></div>
+          {(m.team?.by_manager || []).map((r: any) => <div key={r.name} className="kv"><span>{r.name}</span><span>{r.answered} отв. · в среднем {r.avg_sec != null ? sec(r.avg_sec) : '—'}</span></div>)}</div>
         <div className="panel"><b>Каталог</b><div className="kv"><span>Позиций</span><span>{m.catalog.offers}</span></div><div className="kv"><span>С ценой</span><span>{m.catalog.available_priced}</span></div><div className="kv"><span>Обновлён</span><span>{m.catalog.loaded_at}</span></div></div>
       </div>
     </div>
@@ -460,6 +486,8 @@ function Telegram() {
           {msg && <div className="ok small" style={{ marginTop: 8 }}>{msg}</div>}
           {st.outbox && <div className="muted small" style={{ marginTop: 10 }}>Уведомлений отправлено: {st.outbox.sent}{st.outbox.pending ? ` · в очереди: ${st.outbox.pending} (связь с Telegram восстановится — отправятся автоматически)` : ''}{st.outbox.last_sent ? ` · последнее: ${dt(st.outbox.last_sent)}` : ''}</div>}
           <h3 style={{ marginTop: 18 }}>Подключённые чаты</h3>
+          <p className="muted small">Каждый сотрудник подключает свой Telegram. Приходят: назначенные вам обращения и сообщения клиентов в ваших диалогах;
+            обращения из очереди (когда свободных нет) — всем; администраторам — копии всех обращений. Администратор видит все чаты команды.</p>
           {st.chats.length === 0 ? <div className="muted small">Пока нет. Нажмите «Подключить Telegram».</div> : st.chats.map(c => (
             <div key={c.chat_id} className="kv"><span>{c.name || 'Менеджер'} {c.username ? `@${c.username}` : ''} · {c.manager} · с {dt(c.linked_at)}</span>
               <button className="btn sm ghost" onClick={() => unlink(c.chat_id)}>Отключить</button></div>
@@ -472,21 +500,31 @@ function Telegram() {
 
 export default function Manager() {
   const [authed, setAuthed] = useState(!!token())
+  if (!authed) return <Login onOk={() => setAuthed(true)} />
+  return <Cabinet onLogout={() => setAuthed(false)} />
+}
+
+function Cabinet({ onLogout }: { onLogout: () => void }) {
+  const [authed, setAuthed] = useState(true)
+  const [me, setStatus] = usePresence()
   const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
-  if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['discounts', 'Скидки', Percent], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon], ['help', 'Справка', HelpCircle]]
+  useEffect(() => { if (!authed) onLogout() }, [authed])
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['discounts', 'Скидки', Percent], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon],
+    ...(me?.role === 'admin' ? [['team', 'Команда', Users] as [Tab, string, any]] : []), ['profile', 'Профиль', UserCog], ['help', 'Справка', HelpCircle]]
   return (
+    <MeCtx.Provider value={me}>
     <div className="mgr">
       <aside>
         <a href="/" className="brand"><img src="/logo-white.png" alt="Софтлайн" /></a>
         {tabs.map(([k, label, Icon]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><Icon size={17} /> {label}</button>)}
         <div className="spacer" />
         <button onClick={() => location.reload()}><RefreshCw size={16} /> Обновить</button>
-        <button onClick={() => { setToken(''); setAuthed(false) }}><LogOut size={16} /> Выйти</button>
+        <button onClick={async () => { await api('/api/manager/presence', { auth: true, body: { status: 'offline' } }).catch(() => {}); setToken(''); setAuthed(false) }}><LogOut size={16} /> Выйти</button>
       </aside>
       <section className="mgr-main">
-        <h2>{tabs.find(t => t[0] === tab)![1]}</h2>
+        <StatusBar me={me} setStatus={setStatus} />
+        <h2>{tabs.find(t => t[0] === tab)?.[1]}{me && tab === 'team' ? <span className="muted small"> · раздел администратора</span> : null}</h2>
         {tab === 'live' && <LiveChat />}
         {tab === 'escalations' && <Escalations />}
         {tab === 'dialogs' && <Dialogs />}
@@ -497,7 +535,10 @@ export default function Manager() {
         {tab === 'discounts' && <Discounts />}
         {tab === 'telegram' && <Telegram />}
         {tab === 'help' && <Help />}
+        {tab === 'team' && me?.role === 'admin' && <TeamAdmin />}
+        {tab === 'profile' && <Profile />}
       </section>
     </div>
+    </MeCtx.Provider>
   )
 }

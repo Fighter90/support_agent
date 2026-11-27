@@ -177,6 +177,9 @@ def run_tool(conv_id: str, name: str, args: dict[str, Any], ctx: dict[str, Any])
         eid = db.execute('INSERT INTO escalations (conv_id, reason, category, summary, created_at) VALUES (?,?,?,?,?)',
                          (conv_id, reason, REASON_RU[reason], str(args.get('summary', ''))[:2000], db.now()))
         db.execute("UPDATE conversations SET status='escalated', updated_at=? WHERE id=?", (db.now(), conv_id))
+        from app import team
+
+        team.dispatch()  # сразу назначаем менеджера из очереди «в сети»
         ctx['escalation'] = {'id': eid, 'reason': REASON_RU[reason]}
         return {'escalation_id': eid, 'status': 'передано менеджеру', 'next_step': 'Сообщи клиенту, что менеджер ответит в этом чате.'}
     return {'error': f'Неизвестный инструмент {name}'}

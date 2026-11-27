@@ -169,3 +169,27 @@ input.full { width: 100%; box-sizing: border-box; margin: 8px 0; }
 .help-more img { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
 .help-table { width: 100%; border-collapse: collapse; font-size: 14px; } .help-table th { text-align: left; background: #FAFAFB; }
 .help-table td, .help-table th { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+
+/* команда поддержки: статус, раздел администратора */
+.statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin:-4px 0 12px;background:#fff;border:1px solid #e7e2e4;border-radius:10px}
+.statusbar select{padding:4px 8px;border-radius:8px;border:1px solid #d9d2d5}
+.statusbar .spacer{flex:1}
+.dot.off{background:#b9b3b6!important;box-shadow:none!important}
+.pick{max-width:170px;padding:5px 8px;cursor:pointer}
+.team .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;margin:12px 0}
+.team .tbl th,.team .tbl td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;font-size:14px}
+.team .tbl th{background:#faf7f8;font-weight:600;font-size:13px}
+.team .tbl select{padding:3px 6px;border-radius:6px;border:1px solid #d9d2d5}
+.invite code{display:block;word-break:break-all;margin:6px 0;padding:6px 8px;background:#f4f1f2;border-radius:6px;font-size:12px}
+
+/* чат: история и свёрнутая иконка внизу справа */
+@media (max-width: 900px) { .chat { position: relative; } }
+.hist { position: absolute; inset: 64px 0 0 0; background: #fff; z-index: 5; padding: 14px 16px; overflow-y: auto; border-top: 1px solid var(--line); }
+.hist-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.hist-item { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 12px; margin: 6px 0; cursor: pointer; }
+.hist-item:hover, .hist-item.on { border-color: var(--red); }
+.link.danger { color: var(--red); margin-top: 10px; }
+.icon-btn { border: 0; background: none; cursor: pointer; padding: 4px; border-radius: 6px; color: #666; }
+.icon-btn:hover { background: #f1eef0; }
+.chat-fab { position: fixed; right: 24px; bottom: 24px; width: 62px; height: 62px; border-radius: 50%; border: 0; background: var(--red); color: #fff; box-shadow: 0 8px 24px rgba(162, 13, 50, .35); cursor: pointer; z-index: 50; display: grid; place-items: center; }
+.fab-badge { position: absolute; top: -2px; right: -2px; background: #fff; color: var(--red); border-radius: 999px; font-size: 12px; font-weight: 700; padding: 1px 7px; border: 2px solid var(--red); }

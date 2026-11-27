@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,8 +33,8 @@ WRAP = Alignment(wrap_text=True, vertical='top')
 
 # Цены с НДС за 1000 токенов (официальные прайсы, синхронный режим, с 01.02.2026)
 PRICES = {
-    'GigaChat-2-Max': 0.65, 'GigaChat-2-Pro': 0.50, 'GigaChat-2 (Lite)': 0.065,
-    'YandexGPT Pro 5.1': 0.80,
+    'GigaChat-2-Max': 0.65, 'GigaChat-2-Max (Cloud.ru)': 0.56934, 'GigaChat-2-Pro': 0.50, 'GigaChat-2 (Lite)': 0.065,
+    'YandexGPT Pro 5.1': 0.80, 'YandexGPT Pro 5': 1.20, 'YandexGPT Lite': 0.20,
 }
 STEP_RU = {'tool_choice': 'Выбор инструмента (поиск, варианты, база знаний, КП, эскалация)',
            'answer': 'Ответ клиенту по результатам инструментов', 'price_fix': 'Повтор после проверки цен (редко)'}
@@ -213,7 +214,11 @@ def main() -> None:
     notes = {'GigaChat-2-Max': ('РФ (Сбер)', 'Выбрана: лучший function calling и качество в линейке'),
              'GigaChat-2-Pro': ('РФ (Сбер)', 'Кандидат на удешевление после A/B-теста'),
              'GigaChat-2 (Lite)': ('РФ (Сбер)', 'Для простых FAQ-вопросов (маршрутизация по типу запроса)'),
-             'YandexGPT Pro 5.1': ('РФ (Яндекс)', 'Резервная модель через тот же адаптер')}
+             'YandexGPT Pro 5.1': ('РФ (Яндекс)', 'Резервная модель через тот же адаптер'),
+             'GigaChat-2-Max (Cloud.ru)': ('РФ (Cloud.ru)', 'Та же модель в Evolution Foundation Models: 569,34 ₽/1 млн с НДС; '
+                                           'GigaChat API юрлиц (СалютДевайсы) работает до 30.11.2026 — путь для промышленной эксплуатации'),
+             'YandexGPT Pro 5': ('РФ (Яндекс)', 'Предыдущая версия, дороже 5.1'),
+             'YandexGPT Lite': ('РФ (Яндекс)', 'Дешёвая модель для простых FAQ')}
     for i, (name, price) in enumerate(PRICES.items()):
         r = 4 + i
         m.cell(r, 1, name)
@@ -227,14 +232,79 @@ def main() -> None:
     style_table(m, 3, 1, len(PRICES) + 1, 8)
     for col, w in zip('ABCDEFGH', (22, 16, 16, 18, 16, 20, 16, 52)):
         m.column_dimensions[col].width = w
-    m.cell(10, 1, 'Зарубежные модели (GPT, Claude) не рассматривались: трансграничная передача ПДн (ст. 12 152-ФЗ), оплата и доступность из РФ.')
+    m.cell(4 + len(PRICES) + 1, 1, 'Зарубежные модели (GPT, Claude) не рассматривались: трансграничная передача ПДн (ст. 12 152-ФЗ), оплата и доступность из РФ.')
+
+    # --- Лист «Нагрузка»: токены и деньги по сценариям нагрузки, пиковые запросы, сколько нужно менеджеров
+    L = wb.create_sheet('Нагрузка')
+    L['A1'] = 'Токены и стоимость моделей под нагрузкой, ₽ без НДС; штат менеджеров для эскалаций'
+    L['A1'].font = Font(bold=True, size=13)
+    L['A2'] = ('Жёлтые — допущения. Токены на запрос — замер (лист «Токены по шагам») × рост контекста многоходового диалога. '
+               'Цены — официальные прайсы на 27.11.2026, синхронный режим; без НДС = с НДС / 1,22.')
+    tokq = f"('Токены по шагам'!C{last + 1}+'Токены по шагам'!D{last + 1})"
+    params = [('Сообщений клиента на диалог', 4), ('Коэффициент роста контекста', CTX_GROWTH), ('Токенов на запрос (вход+выход)', f'={tokq}*B5'),
+              ('Доля диалогов с эскалацией', round(rep.get('escalation_rate', 0.255), 3)), ('Минут менеджера на эскалацию (резюме готово)', 10),
+              ('Рабочих часов менеджера в день (эффективно)', 6), ('Доля диалогов в пиковый час', 0.15)]
+    for i, (k, v) in enumerate(params):
+        L.cell(4 + i, 1, k); L.cell(4 + i, 2, v)
+        if i != 2:
+            L.cell(4 + i, 2).fill = YELLOW
+        L.cell(4 + i, 2).number_format = '#,##0.00'
+    style_table(L, 4, 1, len(params), 2, header=False)
+    scen = [('Факт заказчика: 500 за полгода', 500 / 182), ('50 диалогов в день', 50), ('Презентация: 500 в день', 500),
+            ('2 000 в день (рост, сезон)', 2000), ('5 000 в день (вся поддержка Softline)', 5000)]
+    models = [('GigaChat-2-Max', 0.65), ('GigaChat-2-Max (Cloud.ru)', 0.56934), ('YandexGPT Pro 5.1', 0.80), ('GigaChat-2-Pro', 0.50)]
+    top = 13
+    hdr = ['Сценарий', 'Диалогов в день', 'Запросов к агенту в день', 'Токенов в день, млн', 'Пик, запросов в минуту']
+    hdr += [f'{n}: ₽/день' for n, _ in models] + [f'{n}: ₽/мес' for n, _ in models]
+    hdr += ['Эскалаций в день', 'Менеджеров на эскалации, чел.']
+    for j, h in enumerate(hdr, 1):
+        L.cell(top, j, h)
+    for i, (name, per_day) in enumerate(scen):
+        r = top + 1 + i
+        L.cell(r, 1, name); L.cell(r, 2, round(per_day, 2)); L.cell(r, 2).fill = YELLOW
+        L.cell(r, 3, f'=B{r}*$B$4')
+        L.cell(r, 4, f'=C{r}*$B$6/1000000')
+        L.cell(r, 5, f'=B{r}*$B$10*$B$4/60')
+        for k, (_, price) in enumerate(models):
+            L.cell(r, 6 + k, f'=D{r}*1000*{price}/{VAT}')
+            L.cell(r, 6 + len(models) + k, f'={get_column_letter(6 + k)}{r}*30')
+        c = 6 + 2 * len(models)
+        L.cell(r, c, f'=B{r}*$B$7')
+        L.cell(r, c + 1, f'=ROUNDUP(B{r}*$B$7*$B$8/60/$B$9,0)')
+        for j in range(2, c + 2):
+            L.cell(r, j).number_format = '#,##0.00' if j not in (c + 1,) else '0'
+    style_table(L, top, 1, len(scen) + 1, len(hdr))
+    L.column_dimensions['A'].width = 38
+    for j in range(2, len(hdr) + 1):
+        L.column_dimensions[get_column_letter(j)].width = 17
+    tpr = (rep.get('tokens_in_per_request', 5206) + rep.get('tokens_out_per_request', 159)) * CTX_GROWTH
+    tday = 500 * 4 * tpr
+    rub_day = tday / 1000 * 0.65 / VAT
+    mgr = -(-500 * rep.get('escalation_rate', 0.255) * 10 // 60 // 6) if False else round(500 * rep.get('escalation_rate', 0.255) * 10 / 60 / 6 + 0.4999)
+    notes = [
+        f'Как читать (500 диалогов в день): ~2 000 запросов к агенту, ~{tday / 1e6:.1f} млн токенов в день, ~{rub_day / 1000:.1f} тыс. ₽ в день '
+        f'(~{rub_day * 30 / 1000:.0f} тыс. ₽/мес) без НДС на GigaChat 2 Max; на эскалации нужно ~{mgr} менеджера(ов) вместо 6–8 сейчас. '
+        'Рычаги: Cloud.ru (−12%), GigaChat 2 Pro для простых вопросов (−23%), асинхронный режим для фоновых задач (×2).',
+        'Пик: 15% дневных диалогов в пиковый час — запросов в минуту на модель; лимиты GigaChat/YandexGPT для юрлиц это покрывают, '
+        'при росте — второй экземпляр приложения за тем же Caddy (состояние в SQLite WAL → PostgreSQL при >2 000 диалогов в день).',
+        'Менеджеры: эскалации × 10 мин / 6 эффективных часов. Распределение между ними — автоматически, по очереди и нагрузке '
+        '(раздел «Команда» администратора, лимит одновременных диалогов на каждого, переназначение через 3 мин).',
+        'GigaChat API для юрлиц через ООО «СалютДевайсы» работает до 30.11.2026 включительно; далее модели GigaChat — на Cloud.ru '
+        '(Evolution Foundation Models, 569,34 ₽ за 1 млн токенов с НДС, OpenAI-совместимый API) — в адаптере меняются адрес и ключ.',
+    ]
+    for i, t in enumerate(notes):
+        L.cell(top + len(scen) + 3 + i, 1, t).alignment = WRAP
+        L.merge_cells(start_row=top + len(scen) + 3 + i, start_column=1, end_row=top + len(scen) + 3 + i, end_column=10)
+        L.row_dimensions[top + len(scen) + 3 + i].height = 32
 
     # --- Лист «Допущения»
     d = wb.create_sheet('Допущения')
     lines = [
         'Источники и допущения',
         'GigaChat 2 Max — 0,65 ₽ за 1000 токенов с НДС, синхронный режим; Pro — 0,50; Lite — 0,065. developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs (цены с 01.02.2026).',
-        'YandexGPT Pro 5.1 — 0,80 ₽ за 1000 входных и выходных токенов с НДС. aistudio.yandex.ru/docs/ru/ai-studio/pricing.',
+        'YandexGPT Pro 5.1 — 0,80 ₽ за 1000 входных и выходных токенов с НДС (асинхронно 0,41 ₽); Pro 5 — 1,20 ₽; Lite — 0,20 ₽. aistudio.yandex.ru/docs/ru/ai-studio/pricing (проверено 27.11.2026).',
+        'GigaChat 2 Max на Cloud.ru (Evolution Foundation Models) — 569,34 ₽ за 1 млн токенов с НДС, вход и выход по одной цене. GigaChat API юрлиц через ООО «СалютДевайсы» — до 30.11.2026 (developers.sber.ru, обновлено 25.11.2026).',
+        'Лист «Нагрузка»: пять сценариев от факта заказчика до 5 000 диалогов в день — токены в день, пик запросов в минуту, ₽ в день и в месяц на четырёх моделях, сколько менеджеров нужно на эскалации.',
         'НДС 22% (с 01.01.2026) выделен из цен: без НДС = с НДС / 1,22 — по требованию шаблона «все суммы без НДС».',
         'Токены на запрос — замер по журналу llm_calls на прогоне агента по обезличенным перепискам (eval/run_eval.py); история диалога растёт, поэтому 3-е и 4-е сообщения дороже первого.',
         'Нагрузка: ответ заказчика в чате задачи — «500 обращений за полгода»; презентация — «около 500 обращений в день». Посчитаны обе.',

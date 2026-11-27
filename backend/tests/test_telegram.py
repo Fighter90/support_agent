@@ -9,6 +9,7 @@ import httpx
 os.environ.setdefault('DATA_DIR', tempfile.mkdtemp())
 
 from app import db, telegram  # noqa: E402
+from app.config import get_settings  # noqa: E402
 
 SENT: list[tuple[str, dict]] = []
 
@@ -33,7 +34,7 @@ def test_bot_flow(monkeypatch):
     # посторонний не может подключиться без кода
     telegram.handle({'message': {'chat': {'id': 777}, 'from': {'username': 'x'}, 'text': '/start'}})
     assert telegram.chats() == []
-    link = telegram.link_code('Менеджер Softline')
+    link = telegram.link_code('Менеджер Softline', get_settings().manager_login)  # чат администратора: получает все обращения
     assert link['url'].endswith(link['code'])
     telegram.handle({'message': {'chat': {'id': 555}, 'from': {'username': 'mgr', 'first_name': 'Сергей'}, 'text': f'/start {link["code"]}'}})
     assert [c['chat_id'] for c in telegram.chats()] == [555]

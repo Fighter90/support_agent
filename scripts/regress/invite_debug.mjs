@@ -1,0 +1,22 @@
+import { chromium } from 'playwright'
+const BASE = 'https://methodagent.ru'
+const adminCtx = await chromium.launchPersistentContext(new URL('../video/profile', import.meta.url).pathname, { channel: 'chrome', headless: false, ignoreDefaultArgs: ['--enable-automation'] })
+const adm = adminCtx.pages()[0] || await adminCtx.newPage()
+await adm.goto(`${BASE}/manager`)
+const r = await adm.evaluate(async () => {
+  const t = localStorage.getItem('sl_manager_token')
+  return (await fetch('/api/admin/users/igor.petrov/invite', { method: 'POST', headers: { Authorization: 'Bearer ' + t } })).json()
+})
+await adminCtx.close()
+const b = await chromium.launch({ channel: 'chrome', headless: true })
+const p = await (await b.newContext({ viewport: { width: 1400, height: 880 } })).newPage()
+await p.goto(`${BASE}/manager?invite=${r.invite_code}`)
+await p.locator('.statusbar').waitFor()
+await p.locator('aside button', { hasText: 'Живой чат' }).click(); await p.waitForTimeout(2500)
+const items = await p.locator('.list .item').allInnerTexts()
+console.log('items', items.length); console.log(items.filter(t => /Microsoft|365|отсроч/i.test(t)).join('\n---\n'))
+console.log(items.slice(0, 5).join('\n---\n'))
+await p.locator('.list .item', { hasText: 'Microsoft 365' }).first().click({ timeout: 5000 }).catch(e => console.log('CLICK ERR', e.message.slice(0, 200)))
+await p.waitForTimeout(1500)
+console.log('HEAD', await p.locator('.live-head').innerText().catch(() => 'no head'))
+await b.close()
