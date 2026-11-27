@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import agent, auth, catalog, db, hub, kb, learning, llm, payments, pii, quotes
+from app import agent, auth, catalog, db, handoff, hub, kb, learning, llm, payments, pii, quotes, telegram
 from app.config import ROOT_DIR, get_settings
 
 logger = logging.getLogger('support_agent')
@@ -46,6 +46,8 @@ async def lifespan(_: FastAPI):
 
     threading.Thread(target=refresh_loop, daemon=True, name='feed-refresh').start()
     payments.init()
+    telegram.init()
+    telegram.start()
     import asyncio
 
     task = asyncio.create_task(hub.broadcaster())
@@ -115,7 +117,7 @@ class FixIn(BaseModel):
 
 @app.get('/api/health')
 def health() -> dict[str, Any]:
-    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled(), 'payments_mode': payments.mode()}
+    return {'status': 'ok', 'catalog': catalog.stats(), 'models': [p.name for p in llm.chain()], 'payments': payments.enabled(), 'payments_mode': payments.mode(), 'telegram': telegram.enabled()}
 
 
 @app.get('/api/catalog/search')
@@ -358,25 +360,33 @@ class TakeoverIn(BaseModel):
 def takeover(cid: str, body: TakeoverIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
     """Менеджер берёт диалог (агент замолкает) или возвращает его агенту."""
     _conv(cid)
-    db.execute('UPDATE conversations SET mode=?, manager=?, updated_at=? WHERE id=?',
-               ('manager' if body.on else 'agent', m['name'] if body.on else '', db.now(), cid))
-    text = (f'К диалогу подключился {m["name"]}. Отвечаю вам лично.' if body.on else
-            'Менеджер передал диалог ИИ-ассистенту. Я на связи — задавайте вопросы.')
-    db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (cid, 'system', text, '{}', db.now()))
-    if body.on:
-        db.execute("UPDATE escalations SET status='answered', manager=?, answered_at=? WHERE conv_id=? AND status='open'", (m['name'], db.now(), cid))
-    return {'mode': 'manager' if body.on else 'agent'}
+    return handoff.take(cid, m['name'], body.on)
 
 
 @app.post('/api/manager/conversations/{cid}/message')
 def manager_message(cid: str, body: ManagerMessageIn, m: dict = Depends(auth.manager)) -> dict[str, Any]:
-    c = _conv(cid)
-    if c.get('mode') != 'manager':
-        db.execute('UPDATE conversations SET mode=?, manager=? WHERE id=?', ('manager', m['name'], cid))
-    mid = db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)',
-                     (cid, 'manager', body.text.strip(), db.dumps({'manager': m['name']}), db.now()))
-    db.execute('UPDATE conversations SET updated_at=? WHERE id=?', (db.now(), cid))
-    return {'id': mid}
+    _conv(cid)
+    return {'id': handoff.say(cid, m['name'], body.text)}
+
+
+# ------------------------------------------------------------------ Telegram-бот менеджера
+
+@app.get('/api/manager/telegram')
+def telegram_status(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    return {'enabled': telegram.enabled(), 'bot': telegram.bot.username, 'chats': telegram.chats()}
+
+
+@app.post('/api/manager/telegram/link')
+def telegram_link(m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    if not telegram.enabled():
+        raise HTTPException(400, 'Бот не настроен: администратор должен указать TELEGRAM_BOT_TOKEN')
+    return telegram.link_code(m['name'])
+
+
+@app.delete('/api/manager/telegram/chats/{chat_id}')
+def telegram_unlink(chat_id: int, m: dict = Depends(auth.manager)) -> dict[str, Any]:
+    telegram.unlink(chat_id)
+    return {'ok': True}
 
 
 @app.post('/api/manager/quotes/{qid}/payment-link')

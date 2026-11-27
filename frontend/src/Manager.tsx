@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsUp } from 'lucide-react'
+import { Send as TgIcon } from 'lucide-react'
 import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
 
-type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics'
+type Tab = 'live' | 'escalations' | 'dialogs' | 'quotes' | 'feedback' | 'kb' | 'metrics' | 'telegram'
 const SCEN: Record<string, string> = { known_product: 'Знает продукт', need_selection: 'Подбор под задачу', question: 'Вопрос', other: 'Другое', '': '—' }
 
 function Login({ onOk }: { onOk: () => void }) {
@@ -349,12 +350,43 @@ function Metrics() {
   )
 }
 
+function Telegram() {
+  const [st, setSt] = useState<{ enabled: boolean; bot: string; chats: any[] } | null>(null)
+  const [msg, setMsg] = useState('')
+  const load = () => api<any>('/api/manager/telegram', { auth: true }).then(setSt).catch(e => setMsg((e as Error).message))
+  useEffect(() => { load(); const t = window.setInterval(load, 4000); return () => window.clearInterval(t) }, [])
+  const link = async () => {
+    try { const r = await api<{ url: string }>('/api/manager/telegram/link', { auth: true, method: 'POST' }); window.open(r.url, '_blank'); setMsg('Откройте бота и нажмите «Запустить» — чат подключится автоматически (код действует 30 минут).') }
+    catch (e) { setMsg((e as Error).message) }
+  }
+  const unlink = async (id: number) => { await api(`/api/manager/telegram/chats/${id}`, { auth: true, method: 'DELETE' }); load() }
+  if (!st) return <div className="muted pad">Загрузка…</div>
+  return (
+    <div className="panel">
+      <p>Бот <b>@{st.bot}</b> присылает менеджеру новые эскалации (причина, резюме агента, сообщения клиента) с кнопками «Взять диалог» и «Вернуть агенту».
+        Ответ реплаем на уведомление сразу уходит клиенту в чат на сайте. Сообщения клиента в диалоге, который ведёт менеджер, тоже приходят в Telegram.</p>
+      <p className="muted small">152-ФЗ: Telegram — зарубежный сервис, поэтому в бот уходит только обезличенный текст (телефоны, e-mail, ИНН заменены метками). Полный текст — в кабинете.</p>
+      {!st.enabled ? <div className="err">Бот не настроен: администратор должен указать TELEGRAM_BOT_TOKEN в .env на сервере.</div> : (
+        <>
+          <button className="btn" onClick={link}><TgIcon size={16} /> Подключить Telegram</button>
+          {msg && <div className="ok small" style={{ marginTop: 8 }}>{msg}</div>}
+          <h3 style={{ marginTop: 18 }}>Подключённые чаты</h3>
+          {st.chats.length === 0 ? <div className="muted small">Пока нет. Нажмите «Подключить Telegram».</div> : st.chats.map(c => (
+            <div key={c.chat_id} className="kv"><span>{c.name || 'Менеджер'} {c.username ? `@${c.username}` : ''} · {c.manager} · с {dt(c.linked_at)}</span>
+              <button className="btn sm ghost" onClick={() => unlink(c.chat_id)}>Отключить</button></div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Manager() {
   const [authed, setAuthed] = useState(!!token())
   const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3], ['telegram', 'Telegram', TgIcon]]
   return (
     <div className="mgr">
       <aside>
@@ -373,6 +405,7 @@ export default function Manager() {
         {tab === 'feedback' && <Feedback />}
         {tab === 'kb' && <Kb />}
         {tab === 'metrics' && <Metrics />}
+        {tab === 'telegram' && <Telegram />}
       </section>
     </div>
   )
