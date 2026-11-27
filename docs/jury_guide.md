@@ -1,5 +1,12 @@
 # Как проверить решение за 10 минут — памятка для жюри
 
+
+**Ссылки:** сайт с ИИ-ассистентом — https://methodagent.ru · кабинет менеджера — https://methodagent.ru/manager · Telegram-бот менеджера — [@SoftlineSupportBot](https://t.me/SoftlineSupportBot) · материалы — https://methodagent.ru/materials/
+
+| Сайт methodagent.ru | Telegram-бот @SoftlineSupportBot |
+|:---:|:---:|
+| ![QR сайта](guides/img/qr_site.png){width=3.5cm} | ![QR бота](guides/img/qr_bot.png){width=3.5cm} |
+
 Стенд: https://methodagent.ru. Кабинет менеджера: https://methodagent.ru/manager, логин `jury`. Пароль передаётся организаторам вместе с формой сдачи и в открытых материалах не публикуется.
 
 Откройте сайт и кабинет в двух окнах браузера рядом.

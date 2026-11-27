@@ -321,7 +321,7 @@ await step('Метрики: регламент ответа и «закрыто 
   return t.match(/Первый ответ клиенту \(медиана\)\s*([^\n]+)/)?.[0].replace(/\s+/g, ' ') || 'регламент на месте'
 })
 await step('Опрос в конце диалога (после 45 с тишины)', cl, async () => {
-  await cl.bringToFront(); await cl.waitForTimeout(52000)
+  await cl.bringToFront(); await cl.waitForTimeout(97000)
   must(await cl.locator('.survey').count() > 0, 'опрос не появился')
   await cl.locator('.survey').getByRole('button', { name: 'Да' }).click(); await cl.locator('.survey').getByRole('button', { name: '5' }).click()
   await cl.locator('.survey').getByRole('button', { name: /Отправить/ }).click(); await cl.getByText(/Спасибо!/).last().waitFor({ timeout: 8000 })

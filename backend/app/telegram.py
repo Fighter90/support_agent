@@ -127,7 +127,8 @@ def flush(limit: int = 20) -> int:
             db.execute('UPDATE tg_outbox SET sent_at=?, tries=tries+1, error=NULL WHERE id=?', (db.now(), m['id']))
             sent += 1
         except Exception as e:  # noqa: BLE001
-            delay = min(3600, 10 * 2 ** min(m['tries'], 8))
+            # связь с api.telegram.org из РФ рвётся часто, но ненадолго: первые 10 попыток — каждые 3 с, затем реже
+            delay = 3 if m['tries'] < 10 else min(3600, 10 * 2 ** min(m['tries'] - 10, 8))
             db.execute('UPDATE tg_outbox SET tries=tries+1, next_at=?, error=? WHERE id=?',
                        (db.now() + delay, str(e).replace(token(), '***')[:300], m['id']))
             break  # связи нет — остальное попробуем на следующем круге

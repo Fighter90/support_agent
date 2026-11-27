@@ -3,6 +3,13 @@ title: "ИИ-консультант Softline — руководство поль
 subtitle: "Для клиентов store.softline.ru"
 ---
 
+**Ссылки:** сайт с ИИ-ассистентом — https://methodagent.ru · кабинет менеджера — https://methodagent.ru/manager · Telegram-бот менеджера — [@SoftlineSupportBot](https://t.me/SoftlineSupportBot) · материалы — https://methodagent.ru/materials/
+
+| Сайт methodagent.ru | Telegram-бот @SoftlineSupportBot |
+|:---:|:---:|
+| ![QR сайта](img/qr_site.png){width=4cm} | ![QR бота](img/qr_bot.png){width=4cm} |
+
+
 # 1. Что это
 
 ИИ-консультант — это чат на странице магазина store.softline.ru (стенд: https://methodagent.ru). Он работает круглосуточно и помогает:

@@ -7,6 +7,7 @@
 | | |
 |---|---|
 | **Стенд** | https://methodagent.ru — чат клиента |
+| **Telegram-бот менеджера** | https://t.me/SoftlineSupportBot (@SoftlineSupportBot) — подключение в кабинете, раздел «Telegram» |
 | **Кабинет менеджера** | https://methodagent.ru/manager (учётная запись для жюри — в описании продукта) |
 | **API** | https://methodagent.ru/api/docs |
 | **Модель** | GigaChat 2 Max (основная), YandexGPT Pro 5.1 (резерв) — серверы в РФ |
@@ -14,6 +15,8 @@
 | **Документация** | [docs/solution.md](docs/solution.md) · [docs/description.md](docs/description.md) · [docs/cost.xlsx](docs/cost.xlsx) · [презентация](docs/presentation/presentation.pdf) |
 | **Руководства** | [пользователя](docs/guides/01_user_guide.pdf) · [менеджера и оператора](docs/guides/02_manager_guide.pdf) · [администратора](docs/guides/03_admin_guide.pdf) (есть DOCX) |
 | **Качество** | RAGAS по фиду: recall 0,95 · precision 0,88 · faithfulness 0,90 · correctness 0,90 · цены 1,00 ([отчёт](eval/catalog_rag_report.json)); по базе знаний: faithfulness 0,91 ([отчёт](eval/rag_report.json)) |
+
+<p><img src="docs/guides/img/qr_site.png" width="160" alt="QR: сайт methodagent.ru"> &nbsp; <img src="docs/guides/img/qr_bot.png" width="175" alt="QR: Telegram-бот @SoftlineSupportBot"></p>
 
 ## Что умеет
 

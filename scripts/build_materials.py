@@ -44,7 +44,7 @@ def md_pdf(md: Path, pdf: Path, tmp: Path) -> None:
     css = tmp / 'style.css'
     css.write_text(bg.CSS, encoding='utf-8')
     page = tmp / (md.stem + '.html')
-    subprocess.run(['pandoc', str(md), '-s', '-o', str(page), '--embed-resources', f'--css={css}', '-M', 'lang=ru',
+    subprocess.run(['pandoc', str(md), '-s', '-o', str(page), '--embed-resources', f'--resource-path={md.parent}', f'--css={css}', '-M', 'lang=ru',
                     '-M', f'title={md.read_text(encoding="utf-8").splitlines()[0].lstrip("# ").strip()}'], check=True)
     # заголовок первой строки уже стал title — убираем дубль
     t = page.read_text(encoding='utf-8')
