@@ -374,7 +374,7 @@ def manager_message(cid: str, body: ManagerMessageIn, m: dict = Depends(auth.man
 
 @app.get('/api/manager/telegram')
 def telegram_status(m: dict = Depends(auth.manager)) -> dict[str, Any]:
-    return {'enabled': telegram.enabled(), 'bot': telegram.bot.username, 'chats': telegram.chats()}
+    return {'enabled': telegram.enabled(), 'bot': telegram.bot.username, 'chats': telegram.chats(), 'outbox': telegram.outbox_stats()}
 
 
 @app.post('/api/manager/telegram/link')

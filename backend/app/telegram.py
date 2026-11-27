@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS tg_chats (chat_id INTEGER PRIMARY KEY, username TEXT,
 CREATE TABLE IF NOT EXISTS tg_codes (code TEXT PRIMARY KEY, manager TEXT, created_at REAL);
 CREATE TABLE IF NOT EXISTS tg_msgs (chat_id INTEGER, message_id INTEGER, conv_id TEXT, PRIMARY KEY (chat_id, message_id));
 CREATE TABLE IF NOT EXISTS tg_state (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS tg_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, text TEXT, conv_id TEXT, buttons TEXT,
+  tries INTEGER DEFAULT 0, next_at REAL, sent_at REAL, error TEXT);
 """
 CODE_TTL = 30 * 60
 REASONS = {'price_on_request': 'Цена по запросу', 'special_terms': 'Скидка / спецусловия', 'tender': 'Госзакупки / тендер',
@@ -47,14 +49,17 @@ def enabled() -> bool:
 
 class Bot:
     def __init__(self, http: httpx.Client | None = None) -> None:
-        # В контейнере нет IPv6-маршрута: привязка к 0.0.0.0 заставляет ходить в api.telegram.org по IPv4
-        self.http = http or httpx.Client(timeout=40, transport=httpx.HTTPTransport(local_address='0.0.0.0', retries=2))
+        # Из РФ api.telegram.org доступен с перебоями: короткий таймаут соединения, повторы, очередь отправки (tg_outbox)
+        # и, при необходимости, прокси (TELEGRAM_PROXY) или свой адрес Bot API (TELEGRAM_API_BASE, например обратный прокси за рубежом).
+        proxy = os.environ.get('TELEGRAM_PROXY') or None
+        self.http = http or httpx.Client(timeout=httpx.Timeout(40, connect=8), proxy=proxy)
+        self.base = os.environ.get('TELEGRAM_API_BASE', 'https://api.telegram.org').rstrip('/')
         self.username = os.environ.get('TELEGRAM_BOT_USERNAME', 'SoftlineSupportBot')
 
     def call(self, method: str, **params: Any) -> Any:
         for attempt in range(3):  # сетевые сбои — повтор, чтобы уведомление не потерялось
             try:
-                r = self.http.post(f'https://api.telegram.org/bot{token()}/{method}', json=params)
+                r = self.http.post(f'{getattr(self, "base", "https://api.telegram.org")}/bot{token()}/{method}', json=params)
                 break
             except httpx.TransportError:
                 if attempt == 2 or method == 'getUpdates':
@@ -107,11 +112,26 @@ def _send(chat_id: int, text: str, conv_id: str = '', buttons: list[list[dict[st
 
 
 def _broadcast(text: str, conv_id: str, buttons: list[list[dict[str, str]]] | None = None) -> None:
+    """Ставит уведомление в очередь для каждого подключённого чата: при сбое сети оно уйдёт позже, а не потеряется."""
     for c in chats():
+        db.execute('INSERT INTO tg_outbox (chat_id, text, conv_id, buttons, next_at) VALUES (?,?,?,?,?)',
+                   (c['chat_id'], text, conv_id, db.dumps(buttons) if buttons else '', db.now()))
+
+
+def flush(limit: int = 20) -> int:
+    """Отправка очереди: повторы с растущей паузой (до 2 суток), чтобы пережить перебои связи с Telegram."""
+    sent = 0
+    for m in db.rows('SELECT * FROM tg_outbox WHERE sent_at IS NULL AND next_at<=? AND tries<60 ORDER BY id LIMIT ?', (db.now(), limit)):
         try:
-            _send(c['chat_id'], text, conv_id, buttons)
-        except Exception as e:  # noqa: BLE001 — один недоступный чат не мешает остальным
-            logger.warning('Telegram %s: %s', c['chat_id'], e)
+            _send(m['chat_id'], m['text'], m['conv_id'], db.loads(m['buttons'], None) if m['buttons'] else None)
+            db.execute('UPDATE tg_outbox SET sent_at=?, tries=tries+1, error=NULL WHERE id=?', (db.now(), m['id']))
+            sent += 1
+        except Exception as e:  # noqa: BLE001
+            delay = min(3600, 10 * 2 ** min(m['tries'], 8))
+            db.execute('UPDATE tg_outbox SET tries=tries+1, next_at=?, error=? WHERE id=?',
+                       (db.now() + delay, str(e).replace(token(), '***')[:300], m['id']))
+            break  # связи нет — остальное попробуем на следующем круге
+    return sent
 
 
 def _buttons(cid: str) -> list[list[dict[str, str]]]:
@@ -212,20 +232,30 @@ def _notify_loop() -> None:
     while True:
         try:
             notify_new()
+            flush()
         except Exception:  # noqa: BLE001
             logger.exception('Telegram: ошибка уведомлений')
         time.sleep(2)
+
+
+def outbox_stats() -> dict[str, Any]:
+    r = db.one('SELECT sum(sent_at IS NOT NULL) AS sent, sum(sent_at IS NULL) AS pending, max(sent_at) AS last_sent FROM tg_outbox') or {}
+    return {'sent': r.get('sent') or 0, 'pending': r.get('pending') or 0, 'last_sent': r.get('last_sent')}
 
 
 def start() -> None:
     if not enabled():
         logger.info('Telegram-бот выключен: нет TELEGRAM_BOT_TOKEN')
         return
-    try:
-        me = bot.call('getMe')
-        bot.username = me.get('username') or bot.username
-    except Exception as e:  # noqa: BLE001
-        logger.warning('Telegram getMe: %s', e)
+
+    def hello() -> None:  # getMe в фоне — недоступность Telegram не задерживает запуск сервиса
+        try:
+            bot.username = bot.call('getMe').get('username') or bot.username
+            logger.info('Telegram-бот @%s на связи', bot.username)
+        except Exception as e:  # noqa: BLE001
+            logger.warning('Telegram getMe: %s', str(e).replace(token(), '***'))
+
+    threading.Thread(target=hello, name='tg-hello', daemon=True).start()
     threading.Thread(target=_poll, name='tg-poll', daemon=True).start()
     threading.Thread(target=_notify_loop, name='tg-notify', daemon=True).start()
-    logger.info('Telegram-бот @%s запущен', bot.username)
+    logger.info('Telegram-бот запущен (long polling, очередь уведомлений)')

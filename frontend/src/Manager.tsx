@@ -352,7 +352,7 @@ function Metrics() {
 }
 
 function Telegram() {
-  const [st, setSt] = useState<{ enabled: boolean; bot: string; chats: any[] } | null>(null)
+  const [st, setSt] = useState<{ enabled: boolean; bot: string; chats: any[]; outbox?: { sent: number; pending: number; last_sent?: number } } | null>(null)
   const [msg, setMsg] = useState('')
   const load = () => api<any>('/api/manager/telegram', { auth: true }).then(setSt).catch(e => setMsg((e as Error).message))
   useEffect(() => { load(); const t = window.setInterval(load, 4000); return () => window.clearInterval(t) }, [])
@@ -371,6 +371,7 @@ function Telegram() {
         <>
           <button className="btn" onClick={link}><TgIcon size={16} /> Подключить Telegram</button>
           {msg && <div className="ok small" style={{ marginTop: 8 }}>{msg}</div>}
+          {st.outbox && <div className="muted small" style={{ marginTop: 10 }}>Уведомлений отправлено: {st.outbox.sent}{st.outbox.pending ? ` · в очереди: ${st.outbox.pending} (связь с Telegram восстановится — отправятся автоматически)` : ''}{st.outbox.last_sent ? ` · последнее: ${dt(st.outbox.last_sent)}` : ''}</div>}
           <h3 style={{ marginTop: 18 }}>Подключённые чаты</h3>
           {st.chats.length === 0 ? <div className="muted small">Пока нет. Нажмите «Подключить Telegram».</div> : st.chats.map(c => (
             <div key={c.chat_id} className="kv"><span>{c.name || 'Менеджер'} {c.username ? `@${c.username}` : ''} · {c.manager} · с {dt(c.linked_at)}</span>
