@@ -75,6 +75,7 @@ def main() -> None:
     cases = sample(load_cases(Path(args.chats)), args.n)
     (ROOT / 'eval' / 'cases.jsonl').write_text('\n'.join(json.dumps(c, ensure_ascii=False) for c in cases), encoding='utf-8')
     results = []
+    t_run = db.now()
     for i, c in enumerate(cases, 1):
         cid = agent.new_conversation(page_url=c['page'])
         t0 = time.time()
@@ -100,7 +101,7 @@ def main() -> None:
     n = len(results)
     # Токены по шагам агента — исходные данные для расчёта стоимости одного запроса (docs/cost.xlsx)
     steps = db.rows("SELECT step, provider, count(*) AS calls, avg(tokens_in) AS tin, avg(tokens_out) AS tout FROM llm_calls "
-                    "WHERE ok=1 AND step<>'' GROUP BY step, provider")
+                    "WHERE ok=1 AND step<>'' AND created_at >= ? GROUP BY step, provider", (t_run,))  # только этот прогон
     for st in steps:
         st['calls_per_request'] = round(st['calls'] / n, 3)
         st['tin'], st['tout'] = round(st['tin']), round(st['tout'])

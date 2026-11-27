@@ -14,7 +14,15 @@ function inline(text: string, key: string): ReactNode[] {
     else if (t.startsWith('[')) {
       const [, label, href] = t.match(/\[([^\]]+)\]\(([^)]+)\)/) || []
       out.push(<a key={`${key}a${i}`} href={href} target="_blank" rel="noreferrer">{label}</a>)
-    } else out.push(<a key={`${key}u${i}`} href={t.replace(/[.,;]+$/, '')} target="_blank" rel="noreferrer">открыть на store.softline.ru</a>)
+    } else {
+      const href = t.replace(/[.,;]+$/, '')
+      let label = 'открыть ссылку'
+      try {
+        const u = new URL(href)
+        label = /\/pay\//.test(u.pathname) ? 'перейти к оплате' : u.hostname.endsWith('store.softline.ru') ? 'открыть на store.softline.ru' : u.hostname
+      } catch { /* оставляем общий текст */ }
+      out.push(<a key={`${key}u${i}`} href={href} target="_blank" rel="noreferrer">{label}</a>)
+    }
     last = m.index + t.length
     i++
   }

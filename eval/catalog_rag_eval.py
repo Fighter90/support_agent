@@ -183,8 +183,8 @@ def score(item: dict) -> dict:
     # context recall
     if t == 'need':
         recall = float(any(k in blob for k in item['keys']))
-    else:
-        recall = float(item['group_id'] in gids)
+    else:  # оборудование без продуктовой линейки (group_id=0) сверяем по артикулу
+        recall = float((item['group_id'] in gids and item['group_id'] != 0) or item.get('offer_id') in oids)
     # context precision (rank-aware), судья по top-5
     top = [c for c in ctx if c['kind'] != 'offer'][:5]
     cprec = 0.0

@@ -331,7 +331,7 @@ function Metrics() {
   if (!m) return <div className="muted pad">Загрузка…</div>
   const tiles = [
     ['Диалогов', m.conversations], ['Решено без менеджера', `${Math.round(m.automation_rate * 100)}%`], ['Открытых эскалаций', m.escalations_open],
-    ['Стоимость 1 запроса', `${m.cost_per_request_rub} ₽`], ['Всего на модели', `${m.cost_total_rub} ₽`], ['Статей от менеджеров', m.kb_from_managers],
+    ['Стоимость 1 запроса', rub(m.cost_per_request_rub)], ['Всего на модели', rub(m.cost_total_rub)], ['Статей от менеджеров', m.kb_from_managers],
     ['CSAT', m.learning?.csat ?? '—'], ['Вопрос решён (опрос)', m.learning?.resolved_share != null ? `${Math.round(m.learning.resolved_share * 100)}%` : '—'],
   ]
   return (

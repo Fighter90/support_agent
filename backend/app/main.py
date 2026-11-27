@@ -481,6 +481,13 @@ async def reload_catalog(m: dict = Depends(auth.manager)) -> dict[str, Any]:
     return await run_in_threadpool(catalog.ingest, None)
 
 
+# ------------------------------------------------------------------ материалы для жюри (публичная папка без авторизации)
+
+MATERIALS = ROOT_DIR / 'docs' / 'public'
+if MATERIALS.is_dir():
+    app.mount('/materials', StaticFiles(directory=MATERIALS, html=True), name='materials')
+
+
 # ------------------------------------------------------------------ SPA
 
 if (STATIC / 'index.html').exists():

@@ -20,6 +20,7 @@ COPY backend backend
 COPY data/kb data/kb
 COPY scripts scripts
 COPY eval eval
+COPY docs/public docs/public
 COPY --from=ui /ui/dist frontend/dist
 RUN useradd -m -u 1000 app && mkdir -p /app/data && chown -R app /app
 USER app
