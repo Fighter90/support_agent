@@ -152,10 +152,17 @@ if (href) {
 }
 await say('paylink', 300)
 
-// 7. Метрики и финал
+// 7. Telegram, справка, метрики и финал
+await R.locator('aside button', { hasText: 'Telegram' }).click()
+await page.waitForTimeout(1200)
+const sayTg = say('metrics')
+await page.waitForTimeout(5200)
+await R.locator('aside button', { hasText: 'Справка' }).click()
+await page.waitForTimeout(1200)
+await R.locator('#help-telegram').evaluate(e => e.scrollIntoView({ behavior: 'smooth' })).catch(() => {})
+await sayTg
 await R.getByRole('button', { name: /Метрики/ }).click()
-await page.waitForTimeout(1500)
-await say('metrics')
+await page.waitForTimeout(800)
 await say('outro', 1200)
 
 timeline.end = now()
