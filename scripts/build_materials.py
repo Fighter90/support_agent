@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+import json
 import shutil
 import subprocess
 import tempfile
@@ -34,6 +35,7 @@ ITEMS = [  # (файл в public, источник, заголовок, опис
     ('catalog_rag_report.json', ROOT / 'eval' / 'catalog_rag_report.json', 'RAGAS: каталог (отчёт)', '40 вопросов, эталоны из фида'),
     ('rag_report.json', ROOT / 'eval' / 'rag_report.json', 'RAGAS: база знаний (отчёт)', '20 вопросов'),
     ('report.json', ROOT / 'eval' / 'report.json', 'Регресс на реальных обращениях (отчёт)', '51 обращение из обезличенных переписок'),
+    ('regress/index.html', None, 'Регресс в браузере', 'Клиент и кабинет менеджера в одной сессии: 25 проверок со скриншотами'),
 ]
 
 
@@ -59,6 +61,22 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     md_pdf(DOCS / 'description.md', PUB / 'description.pdf', tmp)
     md_pdf(DOCS / 'solution.md', PUB / 'solution.pdf', tmp)
+    reg = ROOT / 'scripts' / 'regress' / 'out'
+    if (reg / 'report.json').exists():  # отчёт регресса в браузере со скриншотами
+        dst = PUB / 'regress'
+        shutil.rmtree(dst, ignore_errors=True)
+        dst.mkdir()
+        rep = json.loads((reg / 'report.json').read_text(encoding='utf-8'))
+        for r in rep['results']:
+            shutil.copy2(reg / r['shot'], dst / r['shot'])
+        rows = ''.join(f'<tr><td>{r["n"]}</td><td>{html.escape(r["name"])}</td><td>{"✅" if r["ok"] else "❌"}</td>'
+                       f'<td>{r["ms"] / 1000:.1f} с</td><td>{html.escape(r["note"])}</td><td><a href="{r["shot"]}">скриншот</a></td></tr>'
+                       for r in rep['results'])
+        (dst / 'index.html').write_text(f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Регресс в браузере</title>
+<style>body{{font-family:Arial,sans-serif;max-width:1100px;margin:30px auto;padding:0 16px}}h1{{color:#A20D32}}table{{border-collapse:collapse;width:100%;font-size:14px}}
+th{{background:#A20D32;color:#fff;text-align:left;padding:6px}}td{{border-bottom:1px solid #eee;padding:6px;vertical-align:top}}a{{color:#A20D32}}</style></head><body>
+<h1>Регресс в браузере — {rep["passed"]} из {rep["total"]}</h1><p>Стенд {rep["base"]}, {rep["at"][:16].replace("T", " ")} UTC. Playwright управляет Chrome: клиент и кабинет менеджера в одной сессии.</p>
+<table><tr><th>№</th><th>Проверка</th><th>Итог</th><th>Время</th><th>Комментарий</th><th></th></tr>{rows}</table></body></html>''', encoding='utf-8')
     rows = []
     for name, src, title, desc in ITEMS:
         if src is not None:

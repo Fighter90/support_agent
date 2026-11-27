@@ -45,6 +45,8 @@ A-запись домена должна указывать на сервер, �
 | `MANAGER_LOGIN`, `MANAGER_PASSWORD` | Учётная запись менеджера |
 | `JURY_LOGIN`, `JURY_PASSWORD` | Учётная запись только для просмотра |
 | `YOOKASSA_MCP_TOKEN` | Токен магазина ЮKassa для MCP. Если пусто, оплата работает в демо-режиме |
+| `YOOKASSA_GATEWAY_ID` | Необязательно: субаккаунт ЮKassa |
+| `TELEGRAM_BOT_TOKEN` | Токен бота менеджера от @BotFather. Если пусто, бот выключен |
 | `LLM_ALLOW_MOCK` | В продакшене `false` (без заглушки модели) |
 
 После изменения `.env` выполните `docker compose up -d app`. Сертификат НУЦ Минцифры, нужный для GigaChat, уже встроен в образ.
@@ -82,7 +84,17 @@ docker compose build app && docker compose up -d app
 - Возвраты через MCP не создаются, их оформляют в кабинете ЮKassa.
 - Перед приёмом реальных платежей замените токен тестового магазина на боевой.
 
-# 6. Мониторинг
+# 6. Telegram-бот менеджера
+
+1. Создайте бота в @BotFather или используйте @SoftlineSupportBot и впишите токен в `.env`:
+   `TELEGRAM_BOT_TOKEN=…`.
+2. Перезапустите приложение: `docker compose up -d app`. `GET /api/health` должен вернуть `"telegram": true`.
+3. Бот работает через long polling (`getUpdates`) из фонового потока. Вебхук и входящие порты не нужны.
+4. Менеджеры подключают свои чаты сами: раздел «Telegram» в кабинете → одноразовый код (30 мин) → `/start <код>`.
+5. Данные бота хранятся в таблицах `tg_chats` (подключённые чаты), `tg_codes`, `tg_msgs` (связь уведомления с диалогом для ответов реплаем) и `tg_state`.
+6. В Telegram уходит только обезличенный текст. Сервис зарубежный, поэтому персональные данные остаются в РФ. Если токен скомпрометирован, перевыпустите его в @BotFather командой `/revoke`.
+
+# 7. Мониторинг
 
 - `GET /api/health` — состояние каталога (число позиций, время загрузки), модели и режима оплаты.
 - `docker compose logs app --since 1h` — журналы.
@@ -90,19 +102,20 @@ docker compose build app && docker compose up -d app
 - Таблицы `llm_calls` и `tool_calls` в `app.db` — подробный журнал вызовов модели и инструментов (без ПДн).
 - Резервная копия раз в сутки по cron: `sqlite3 data/runtime/app.db ".backup /backup/app-$(date +%F).db"`.
 
-# 7. Проверка качества
+# 8. Проверка качества
 
 ```bash
 .venv/bin/python -m pytest -q backend/tests          # модульные тесты
 .venv/bin/python eval/run_eval.py                    # 51 обращение: маршрутизация, задержка, стоимость
 .venv/bin/python eval/rag_eval.py                    # RAGAS по базе знаний
 .venv/bin/python eval/catalog_rag_eval.py 6          # RAGAS по каталогу из фида
-.venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # сквозной тест реалтайма и оплаты
+.venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # сквозной тест реалтайма и оплаты (API)
+node scripts/regress/browser_regress.mjs                          # полный регресс в браузере, 25 проверок
 ```
 
 Проверки качества запускайте после каждого изменения промпта, модели или поиска. Метрики RAGAS не должны падать относительно отчётов `eval/*_report.json` в репозитории.
 
-# 8. Безопасность и 152-ФЗ
+# 9. Безопасность и 152-ФЗ
 
 - Все компоненты и модель работают в РФ: сервер Timeweb, GigaChat (ПАО Сбербанк). Трансграничной передачи данных нет.
 - Персональные данные (телефон, e-mail, ИНН, КПП, ОГРН, карта, паспорт, ФИО) маскируются до отправки в модель. Оригиналы хранятся в таблице `pii` и подставляются только в ответ клиенту.
@@ -111,7 +124,7 @@ docker compose build app && docker compose up -d app
 - На сервер заходите по SSH только с ключом, вход по паролю root отключите.
 - Чтобы удалить данные клиента, удалите строки по `conv_id` из `messages`, `pii`, `quotes` и `escalations`.
 
-# 9. Типовые проблемы
+# 10. Типовые проблемы
 
 | Симптом | Причина и решение |
 |---|---|
@@ -119,4 +132,5 @@ docker compose build app && docker compose up -d app
 | OAuth 400 «scope …» | `GIGACHAT_SCOPE` не соответствует типу ключа |
 | В каталоге 0 позиций | Нет доступа к фиду: проверьте сеть и вызовите обновление каталога |
 | PDF не формируется | Нет библиотек pango: используйте Docker-образ |
+| Бот молчит | Проверьте `"telegram": true` в `/api/health` и подключение чата в разделе «Telegram»; в журнале ищите `Telegram getUpdates` |
 | Кабинет не обновляется сам | Прокси не пропускает WebSocket. Caddy пропускает его без настроек, в nginx добавьте заголовки `Upgrade` и `Connection` |

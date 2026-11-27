@@ -34,6 +34,7 @@
 - Отметка «добавить в базу знаний» — агент в следующий раз ответит сам.
 - КП и счета: просмотр PDF, подтверждение, ссылка на оплату ЮKassa и статус оплаты.
 - Отзывы 👎 → «Исправить и добавить в базу знаний»; CSAT и комментарии из опросов.
+- **Telegram-бот @SoftlineSupportBot**: эскалации с кнопками «Взять диалог» / «Вернуть агенту», ответ клиенту реплаем; подключение по одноразовому коду из кабинета.
 - Журнал всех диалогов: вызовы инструментов, токены, стоимость, задержка, замаскированные ПДн.
 - Метрики: доля решённых без менеджера, эскалации по причинам, стоимость одного запроса, сценарии.
 
@@ -107,7 +108,8 @@ cd backend && ../.venv/bin/python -m pytest -q tests
 cd .. && .venv/bin/python eval/run_eval.py --n 60      # нужны переписки в data/raw/task/chats
 .venv/bin/python eval/catalog_rag_eval.py 8          # RAGAS по каталогу из фида (40 вопросов, судья GigaChat)
 .venv/bin/python eval/rag_eval.py                      # RAGAS по базе знаний
-.venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # реалтайм, кабинет, оплата
+.venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # реалтайм, кабинет, оплата (API)
+node scripts/regress/browser_regress.mjs                          # полный регресс в браузере (25 проверок)
 .venv/bin/python scripts/build_cost_xlsx.py            # пересчёт docs/cost.xlsx по замерам
 ```
 
@@ -128,6 +130,7 @@ cd scripts/video && npm install && node login.mjs   # вход в кабинет
 | `SECRET_KEY`, `MANAGER_LOGIN/PASSWORD`, `JURY_LOGIN/PASSWORD` | Кабинет менеджера |
 | `FEED_URL` | Фид каталога (по умолчанию Mindbox.yml.gz store.softline.ru) |
 | `YOOKASSA_MCP_TOKEN` | Токен магазина ЮKassa для MCP; пусто — демо-режим оплаты |
+| `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота менеджера; пусто — бот выключен |
 
 ## Наработки и компоненты третьих лиц
 
