@@ -88,7 +88,7 @@ export default function Chat() {
   const paid = msgs.some(x => x.role === 'system' && /Оплата .*получена/.test(x.content))
   const pendingForm = msgs.some(x => x.meta?.quote?.status === 'awaiting_requisites' && !filledQuotes.has(x.meta.quote.quote_id))
   const asksQuestion = !!lastMsg && /\?\s*$/.test(lastMsg.content.trim()) && lastMsg.role === 'assistant'
-  const answered = msgs.filter(x => x.role !== 'user').length >= 3 && !!lastMsg && lastMsg.role !== 'user' && !pendingForm && !mgrMode
+  const answered = msgs.filter(x => x.role !== 'user').length >= 2 && !!lastMsg && lastMsg.role !== 'user' && !pendingForm && !mgrMode
     && (paid || clock - lastChange.current > (asksQuestion ? 180000 : 45000))  // на встречный вопрос ассистента ждём дольше
 
   const load = async (id: string, after = 0) => {

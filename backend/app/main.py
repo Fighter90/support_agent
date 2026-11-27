@@ -60,12 +60,14 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title='ИИ-агент поддержки store.softline.ru', version='1.0.0', lifespan=lifespan, docs_url='/api/docs', openapi_url='/api/openapi.json')
 
 
-def _limit(request: Request, n: int = 40, window: int = 600) -> None:
+def _limit(request: Request, n: int = 40, window: int = 600, bucket: str = 'chat') -> None:
+    """Ограничение частоты по IP — отдельный счётчик для каждого вида запросов (поиск не съедает лимит сообщений)."""
     ip = request.headers.get('x-forwarded-for', request.client.host if request.client else '-').split(',')[0].strip()
-    hits = [t for t in _rate.get(ip, []) if time.time() - t < window]
+    key = f'{bucket}:{ip}'
+    hits = [t for t in _rate.get(key, []) if time.time() - t < window]
     if len(hits) >= n:
-        raise HTTPException(429, 'Слишком много сообщений, попробуйте через несколько минут')
-    _rate[ip] = [*hits, time.time()]
+        raise HTTPException(429, 'Слишком много запросов, попробуйте через несколько минут')
+    _rate[key] = [*hits, time.time()]
 
 
 def _conv(cid: str) -> dict[str, Any]:
@@ -126,7 +128,7 @@ def health() -> dict[str, Any]:
 def catalog_search(q: str = Query('', max_length=200), request: Request = None) -> dict[str, Any]:
     """Поисковая строка витрины: продуктовые линейки по запросу (тот же поиск, что у агента)."""
     if request:
-        _limit(request, 120, 60)
+        _limit(request, 120, 60, 'search')
     if len(q.strip()) < 2:
         return {'items': []}
     res = catalog.search(q, {'only_available': False}, limit=8)
@@ -137,7 +139,7 @@ def catalog_search(q: str = Query('', max_length=200), request: Request = None) 
 
 @app.post('/api/chat/start')
 def start(body: StartIn, request: Request) -> dict[str, Any]:
-    _limit(request, 20)
+    _limit(request, 20, bucket='start')
     cid = agent.new_conversation(body.page_url)
     mid = db.execute('INSERT INTO messages (conv_id, role, content, created_at) VALUES (?,?,?,?)', (cid, 'assistant', GREETING, db.now()))
     return {'conversation_id': cid, 'messages': [{'id': mid, 'role': 'assistant', 'content': GREETING, 'meta': {}}]}
@@ -204,7 +206,7 @@ async def ws_manager(ws: WebSocket, token: str = Query('')) -> None:
 @app.post('/api/quotes/{qid}/pay')
 async def pay(qid: str, request: Request) -> dict[str, Any]:
     """Ссылка на оплату через MCP ЮKassa — только для своего документа, сумма из КП/счёта."""
-    _limit(request, 10)
+    _limit(request, 10, bucket='pay')
     try:
         p = await run_in_threadpool(payments.create_for_quote, qid, 'client')
     except payments.PaymentError as e:
@@ -262,7 +264,7 @@ async def requisites(qid: str, body: RequisitesIn) -> dict[str, Any]:
     total = f'{q["total"]:,.2f}'.replace(',', ' ').replace('.', ',')
     text = (f'{doc} {q["number"]} на сумму {total} ₽ сформирован. ' +
             'PDF можно скачать по кнопке ниже — документ готов к оплате.')
-    meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'kind': q.get('kind'),
+    meta = {'quote': {'quote_id': qid, 'number': q['number'], 'total_rub': q['total'], 'status': q['status'], 'kind': q.get('kind'), 'discount': q.get('discount'),
                       'pdf': f'/api/quotes/{qid}/pdf'}}
     db.execute('INSERT INTO messages (conv_id, role, content, meta, created_at) VALUES (?,?,?,?,?)', (q['conv_id'], 'assistant', text, db.dumps(meta), db.now()))
     return {'quote_id': qid, 'number': q['number'], 'status': q['status'], 'pdf': f'/api/quotes/{qid}/pdf'}

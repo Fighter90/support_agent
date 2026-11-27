@@ -27,6 +27,8 @@ async function step(name, page, fn) {
   }
 }
 const must = (cond, msg) => { if (!cond) throw new Error(msg) }
+const HELP = [new URL('../../frontend/public/help/', import.meta.url).pathname, new URL('../../docs/guides/img/', import.meta.url).pathname]
+const helpShot = async (page, name) => { for (const d of HELP) await page.screenshot({ path: d + name + '.jpg', type: 'jpeg', quality: 82 }) }
 
 const cl = ctx.pages()[0] || await ctx.newPage()
 await cl.goto(`${BASE}/`)
@@ -48,6 +50,45 @@ async function ask(text) {
   return last
 }
 
+const mg = await ctx.newPage()
+await mg.goto(`${BASE}/manager`)
+await step('Скидки: лимит агента 5% и акция в таблице менеджера', mg, async () => {
+  await mg.locator('aside button', { hasText: 'Скидки' }).click(); await mg.waitForTimeout(1500)
+  const txt = await mg.locator('.mgr-main').innerText()
+  if (!/Демо-акция Kaspersky/.test(txt)) {
+    await mg.locator('select').first().selectOption('vendor')
+    await mg.locator('.row-form').nth(1).locator('input').first().fill('Касперск')
+    await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('7')
+    await mg.getByPlaceholder('Например: Неделя Kaspersky').fill('Демо-акция Kaspersky')
+    await mg.getByRole('button', { name: 'Добавить' }).click(); await mg.waitForTimeout(1500)
+  }
+  await mg.getByPlaceholder(/Найдите товар/).fill('касперский endpoint'); await mg.waitForTimeout(2500)
+  const prev = await mg.locator('.mgr-main').innerText()
+  must(/Демо-акция Kaspersky/.test(prev) && /−7%/.test(prev), 'акция не применяется к Kaspersky')
+  return 'акция −7% на Kaspersky, проверка показывает цену со скидкой'
+})
+await step('Скидки: настройки, изменение, выключение и удаление правила', mg, async () => {
+  const sets = mg.locator('.row-form').first().locator('input')
+  await sets.nth(0).fill('20'); await mg.getByRole('button', { name: 'Сохранить' }).first().click(); await mg.waitForTimeout(1000)
+  must(/от 0 до 15/.test(await mg.locator('.mgr-main').innerText()), 'нет проверки лимита > 15%')
+  await sets.nth(0).fill('5'); await sets.nth(1).fill('2'); await mg.getByRole('button', { name: 'Сохранить' }).first().click(); await mg.waitForTimeout(1000)
+  must(/Настройки сохранены/.test(await mg.locator('.mgr-main').innerText()), 'настройки не сохранились')
+  // временное правило: добавить → изменить → выключить → удалить
+  await mg.locator('select').first().selectOption('offer'); await mg.locator('.row-form').nth(1).locator('input').first().fill('4986')
+  await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('3'); await mg.getByPlaceholder('Например: Неделя Kaspersky').fill('Регресс-тест')
+  await mg.getByRole('button', { name: 'Добавить' }).click(); await mg.waitForTimeout(1200)
+  const row = mg.locator('tr', { hasText: 'Регресс-тест' }); must(await row.count() === 1, 'правило не добавилось')
+  await row.getByRole('button', { name: 'Изменить' }).click(); await mg.locator('.row-form').nth(1).locator('input[type=number]').fill('4')
+  await mg.getByRole('button', { name: 'Сохранить' }).last().click(); await mg.waitForTimeout(1200)
+  must(/4%/.test(await mg.locator('tr', { hasText: 'Регресс-тест' }).innerText()), 'изменение не сохранилось')
+  await mg.locator('tr', { hasText: 'Регресс-тест' }).getByRole('button', { name: 'Выключить' }).click(); await mg.waitForTimeout(1000)
+  must(/Выключена/.test(await mg.locator('tr', { hasText: 'Регресс-тест' }).innerText()), 'не выключилось')
+  await mg.locator('tr', { hasText: 'Регресс-тест' }).getByRole('button', { name: 'Удалить' }).click(); await mg.waitForTimeout(1000)
+  must(await mg.locator('tr', { hasText: 'Регресс-тест' }).count() === 0, 'не удалилось')
+  return 'проверка лимита, сохранение, добавить/изменить/выключить/удалить — работает'
+})
+await cl.bringToFront()
+
 // ---------- Клиент
 await step('Витрина: каталог, пометка «отвечает робот», кнопка оператора', cl, async () => {
   await input().waitFor({ timeout: 20000 })
@@ -61,9 +102,13 @@ await step('Поиск по каталогу на витрине', cl, async () 
   const s = cl.locator('.search input'); await s.fill('касперский endpoint'); await cl.waitForTimeout(1500)
   const k = await cl.locator('.suggest .sg').count()
   must(k >= 2, 'нет подсказок')
-  const txt = await cl.locator('.suggest').innerText(); await s.fill('')
+  const txt = await cl.locator('.suggest').innerText()
   must(/Kaspersky/i.test(txt), 'в подсказках нет Kaspersky')
-  return `${k - 1} подсказок`
+  const [card] = await Promise.all([ctx.waitForEvent('page'), cl.locator('.suggest a.sg').first().click()])
+  const url = card.url(); await card.close()
+  must(/store\.softline\.ru/.test(url), 'подсказка не открыла карточку товара')
+  await s.fill('')
+  return `${k - 1} подсказок, клик открывает ${url.slice(0, 45)}…`
 })
 await step('Вопрос по базе знаний (НДС)', cl, async () => {
   const a = await ask('Цены на сайте указаны с НДС?'); must(/НДС/i.test(a), 'ответ не про НДС'); return a.slice(0, 90)
@@ -84,14 +129,20 @@ await step('Ответ на уточнение и российский анал�
   must(/₽/.test(await cl.locator('.chat-body').innerText()), 'нет цен в ответе')
   return a.slice(0, 90)
 })
-await step('Счёт со скидкой 5% и форма реквизитов, PDF', cl, async () => {
-  await ask('Берём Kaspersky Endpoint Security для бизнеса Стандартный на 50 ПК на 1 год, новая лицензия. Выставьте счёт со скидкой 5%')
+await step('Агент сам называет акцию; счёт выдан сразу со скидкой 7%, PDF', cl, async () => {
+  const offer = await ask('Сколько стоит Kaspersky Endpoint Security для бизнеса Стандартный на 50 ПК на 1 год, новая лицензия?')
+  must(/7\s?%|скидк|акци/i.test(offer), 'агент не сказал клиенту об акции')
+  await ask('Берём. Выставьте счёт')
   const f = cl.locator('.quote-form').last(); await f.waitFor({ timeout: 20000 })
   await f.getByPlaceholder('Название организации').fill('ООО «Ромашка»')
+  await f.getByPlaceholder('ИНН').fill('123'); await f.locator('button').click(); await cl.waitForTimeout(1200)
+  must(/ИНН/.test(await f.innerText()), 'нет ошибки при неверном ИНН')
   await f.getByPlaceholder('ИНН').fill('7707083893'); await f.getByPlaceholder('КПП (если есть)').fill('773601001')
   await f.getByPlaceholder('E-mail для КП').fill('zakupki@romashka.ru'); await f.locator('button').click()
   const card = cl.locator('.quote:not(.muted)').last(); await card.waitFor({ timeout: 60000 })
   const txt = await card.innerText(); must(/Счёт|КП/.test(txt), 'нет карточки документа')
+  must(/скидка 7%/.test(txt) && !/проверяется менеджером/i.test(txt), 'в документе нет акции 7% или он ждёт проверки менеджера')
+  await card.scrollIntoViewIfNeeded(); await helpShot(cl, 'chat_invoice')
   const href = await card.locator('a', { hasText: 'PDF' }).getAttribute('href')
   const r = await ctx.request.get(new URL(href, BASE).toString())
   must(r.ok() && (r.headers()['content-type'] || '').includes('pdf'), 'PDF не отдаётся')
@@ -105,6 +156,15 @@ await step('Оценка ответа 👍 и 👎', cl, async () => {
 await step('Опрос не мешает, пока идёт диалог', cl, async () => {
   must(await cl.locator('.survey').count() === 0, 'опрос показан посреди диалога'); return 'опроса нет'
 })
+await step('Отсрочка платежа → сразу менеджеру', cl, async () => {
+  const a = await ask('А можно оплатить счёт с отсрочкой 30 дней?')
+  const esc = await cl.locator('.chat-body .esc').last().innerText().catch(() => '')
+  must(/менеджер/i.test(a + esc), 'отсрочку агент не передал менеджеру'); return (esc || a).slice(0, 90)
+})
+await step('Карточка товара с сайта: системные требования', cl, async () => {
+  const a = await ask('Какие системные требования у Kaspersky Endpoint Security для бизнеса Стандартный?')
+  must(/Windows|ГБ|ОЗУ|процессор|ГГц/i.test(a), 'нет системных требований'); return a.slice(0, 90)
+})
 await step('Онлайн-оплата счёта (ЮKassa, демо)', cl, async () => {
   const [pay] = await Promise.all([ctx.waitForEvent('page'), cl.locator('.quote:not(.muted)').last().getByText('Оплатить онлайн').click()])
   await pay.waitForLoadState(); await pay.getByRole('button', { name: /Оплатить/ }).click()
@@ -114,13 +174,12 @@ await step('Онлайн-оплата счёта (ЮKassa, демо)', cl, async
 })
 
 // ---------- Менеджер
-const mg = await ctx.newPage()
-await mg.goto(`${BASE}/manager`)
+await mg.bringToFront(); await mg.goto(`${BASE}/manager`)
 await step('Кабинет: вход сохранён, все разделы', mg, async () => {
   await mg.getByText('Живой чат').first().waitFor({ timeout: 15000 })
   const menu = await mg.locator('aside').innerText()
-  for (const t of ['Эскалации', 'Диалоги', 'КП и счета', 'Отзывы', 'База знаний', 'Метрики', 'Telegram', 'Справка']) must(menu.includes(t), 'нет раздела ' + t)
-  return '9 разделов'
+  for (const t of ['Эскалации', 'Диалоги', 'КП и счета', 'Скидки', 'Отзывы', 'База знаний', 'Метрики', 'Telegram', 'Справка', 'Обновить', 'Выйти']) must(menu.includes(t), 'нет пункта ' + t)
+  return '10 разделов'
 })
 await step('Позвать оператора → диалог в кабинете в реальном времени', mg, async () => {
   await cl.getByText('Позвать оператора').first().click()
@@ -131,10 +190,13 @@ await step('Позвать оператора → диалог в кабинет
 await step('Взять диалог и ответить клиенту', mg, async () => {
   await mg.locator('.list .item').first().click(); await mg.waitForTimeout(800)
   await mg.getByRole('button', { name: /Взять диалог/ }).click(); await mg.waitForTimeout(600)
+  await mg.locator('.quick button').nth(1).click(); must((await mg.locator('.live-input textarea').inputValue()).length > 10, 'быстрый ответ не вставился')
   const ta = mg.locator('.live-input textarea'); await ta.fill('Здравствуйте! Менеджер Softline на связи, помогу с документами.')
   const t0 = Date.now(); await ta.press('Enter')
   await cl.getByText('Менеджер Softline на связи').waitFor({ timeout: 10000 })
-  return `клиент получил ответ через ${Date.now() - t0} мс`
+  const ms = Date.now() - t0
+  await helpShot(mg, 'live_take'); await helpShot(cl, 'chat_operator')
+  return `быстрые ответы работают; клиент получил ответ через ${ms} мс`
 })
 await step('Клиент пишет менеджеру → сообщение в кабинете', mg, async () => {
   await input().fill('Спасибо, жду закрывающие документы'); await input().press('Enter')
@@ -146,7 +208,9 @@ await step('Вернуть агенту', mg, async () => {
 })
 await step('Эскалации: очередь с причиной и резюме', mg, async () => {
   await mg.getByRole('button', { name: /Эскалации/ }).click(); await mg.waitForTimeout(1500)
-  return (await mg.locator('.mgr-main').innerText()).replace(/\s+/g, ' ').slice(0, 100)
+  for (const t of ['Отвеченные', 'Все', 'Новые']) { await mg.locator('.seg button', { hasText: t }).click(); await mg.waitForTimeout(900) }
+  const t = await mg.locator('.mgr-main').innerText(); must(/ждёт/.test(t) || /Нет обращений/.test(t), 'нет таймера регламента')
+  return 'вкладки Новые/Отвеченные/Все, таймер «ждёт …» на месте'
 })
 await step('Диалоги: журнал инструментов и токенов', mg, async () => {
   await mg.getByRole('button', { name: /Диалоги/ }).click(); await mg.waitForTimeout(1200)
@@ -158,16 +222,32 @@ await step('КП и счета: статус оплаты, подтвержде�
   await mg.getByRole('button', { name: /КП и счета/ }).click(); await mg.waitForTimeout(1500)
   const row = mg.locator('tbody tr').first(); const txt = await row.innerText()
   must(/Оплачен/.test(txt), 'статус оплаты не «Оплачено»')
-  const b = row.getByRole('button', { name: 'Подтвердить' }); if (await b.count()) { await b.click(); await mg.waitForTimeout(800) }
+  const b = row.getByRole('button', { name: 'Подтвердить' }); if (await b.count()) { await b.click(); await mg.waitForTimeout(1200) }
+  must(/Подтверждено/.test(await row.innerText()), 'подтверждение не сработало')
+  const [pdf] = await Promise.all([ctx.waitForEvent('page', { timeout: 15000 }), row.getByRole('button', { name: 'PDF' }).click()])
+  await pdf.waitForLoadState().catch(() => {}); await pdf.close()
   return txt.replace(/\s+/g, ' ').slice(0, 90)
 })
-await step('Отзывы', mg, async () => {
+await step('Отзывы: исправить ответ с 👎 в базу знаний', mg, async () => {
   await mg.getByRole('button', { name: /Отзывы/ }).click(); await mg.waitForTimeout(1500)
-  return (await mg.locator('.mgr-main').innerText()).replace(/\s+/g, ' ').slice(0, 100)
+  const box = mg.getByPlaceholder('Правильный ответ — станет статьёй базы знаний').first()
+  if (await box.count()) {
+    await box.fill('Цены на store.softline.ru указаны с НДС 22%; ПО из реестра отечественного ПО продаётся без НДС.')
+    await mg.getByRole('button', { name: /Исправить и добавить в базу знаний/ }).first().click(); await mg.waitForTimeout(1500)
+    return 'исправление сохранено в базу знаний'
+  }
+  return 'нет отзывов с 👎 для исправления'
 })
-await step('База знаний', mg, async () => {
+await step('База знаний: статьи и форма «Добавить статью»', mg, async () => {
   await mg.getByRole('button', { name: /База знаний/ }).click(); await mg.waitForTimeout(1500)
-  must(/НДС|оплат/i.test(await mg.locator('.mgr-main').innerText()), 'статьи не показаны'); return 'статьи на месте'
+  must(/НДС|оплат/i.test(await mg.locator('.mgr-main').innerText()), 'статьи не показаны')
+  const q = 'Как связаться с живым менеджером в чате?'
+  if (!(await mg.getByText(q).count())) {
+    await mg.getByPlaceholder('Вопрос / заголовок').fill(q)
+    await mg.getByPlaceholder('Ответ', { exact: true }).fill('Нажмите кнопку «Позвать оператора» над полем ввода — менеджер подключится в этом же чате. В рабочее время ответ приходит в течение 2 минут.')
+    await mg.getByRole('button', { name: /^Добавить/ }).last().click(); await mg.waitForTimeout(1500)
+  }
+  must(await mg.getByText(q).count() > 0, 'статья не добавилась'); return 'статьи на месте, форма добавления работает'
 })
 await step('Метрики', mg, async () => {
   await mg.getByRole('button', { name: /Метрики/ }).click(); await mg.waitForTimeout(1500)
@@ -178,19 +258,22 @@ await step('Telegram: раздел подключения бота', mg, async (
   const txt = await mg.locator('.mgr-main').innerText(); must(/SoftlineSupportBot|бот/i.test(txt), 'нет раздела бота')
   return /Подключить Telegram/.test(txt) ? 'бот включён' : 'бот не настроен (нет токена на сервере)'
 })
-await step('Telegram: бот включён, чат менеджера подключён', mg, async () => {
+await step('Telegram: бот включён, кнопка подключения выдаёт ссылку, чат менеджера подключён', mg, async () => {
+  const [tg] = await Promise.all([ctx.waitForEvent('page', { timeout: 15000 }), mg.getByRole('button', { name: /Подключить Telegram/ }).click()])
+  const u = tg.url(); await tg.close(); must(/t\.me\/SoftlineSupportBot\?start=/.test(u), 'нет ссылки на бота: ' + u)
   const txt = await mg.locator('.mgr-main').innerText()
   must(/Подключить Telegram/.test(txt), 'бот не настроен'); must(/Отключить/.test(txt), 'нет подключённых чатов')
   return 'бот включён, подключённых чатов: ' + (await mg.getByRole('button', { name: 'Отключить' }).count())
 })
-await step('Справка: 13 разделов, скриншоты загружаются', mg, async () => {
+await step('Справка: отдельный пункт меню, 16 разделов по шагам, все скриншоты загружаются', mg, async () => {
   await mg.locator('aside button', { hasText: 'Справка' }).click(); await mg.waitForTimeout(2000)
-  const secs = await mg.locator('.help-sec').count(); must(secs >= 13, 'разделов справки ' + secs)
+  const secs = await mg.locator('.help-sec').count(); must(secs >= 16, 'разделов справки ' + secs)
   await mg.evaluate(async () => { for (const im of document.querySelectorAll('.help img')) { im.loading = 'eager'; im.scrollIntoView(); await new Promise(r => setTimeout(r, 150)) } })
   await mg.waitForTimeout(1500)
   const broken = await mg.evaluate(() => [...document.querySelectorAll('.help img')].filter(i => !i.complete || i.naturalWidth === 0).map(i => i.src))
   must(broken.length === 0, 'не загрузились: ' + broken.join(', '))
   const txt = await mg.locator('.help').innerText(); must(/Подключение личного Telegram/.test(txt) && /реплаем/.test(txt), 'нет инструкции по Telegram')
+  await mg.locator('.help-toc a', { hasText: 'Скидки' }).click(); await mg.waitForTimeout(600)
   await mg.evaluate(() => document.getElementById('help-telegram').scrollIntoView())
   return `${secs} разделов, ${await mg.locator('.help img').count()} скриншотов`
 })
@@ -200,6 +283,41 @@ await step('Каталог: RAG по фиду store.softline.ru (API поиск�
   const r = await (await fetch(`${BASE}/api/catalog/search?q=${encodeURIComponent('астра линукс')}`)).json()
   must(r.items.some(i => /Astra Linux/i.test(i.product)), 'не найден Astra Linux')
   return `${h.catalog.offers} позиций, с ценой ${h.catalog.available_priced}, загружено ${h.catalog.loaded_at}; «астра линукс» → ${r.items[0].product}`
+})
+await step('После покупки: сначала инструкция, «не помогло» → менеджер', cl, async () => {
+  await cl.bringToFront(); await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
+  const a1 = await ask('Оплатили лицензию, а ключ не пришёл. Что делать?')
+  must(!(await cl.locator('.chat-body .esc').count()), 'сразу передал менеджеру, без инструкции')
+  const a2 = await ask('Проверили, не помогло — ключа нигде нет')
+  const esc = await cl.locator('.chat-body .esc').count()
+  must(esc > 0 || /менеджер/i.test(a2), 'после «не помогло» не подключил менеджера')
+  return 'инструкция: ' + a1.slice(0, 50) + ' → передано менеджеру'
+})
+const Q = 'Можно ли получить счёт и закрывающие документы на английском языке?'
+const ANSWER = 'Да, документы на английском языке готовим по запросу: срок — 1 рабочий день после оплаты.'
+await step('Цикл обучения: вопрос без ответа → менеджер отвечает в базу знаний', mg, async () => {
+  await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
+  await ask(Q)
+  if (!(await cl.locator('.chat-body .esc').count())) { await cl.getByText('Позвать оператора').first().click(); await cl.waitForTimeout(1500) }
+  await mg.bringToFront(); await mg.locator('aside button', { hasText: 'Эскалации' }).click(); await mg.waitForTimeout(2000)
+  await mg.locator('.list .item').first().click(); await mg.waitForTimeout(1000)
+  const box = mg.getByPlaceholder('Ответ клиенту — придёт в его чат'); await box.fill(ANSWER)
+  const kb = mg.locator('input[type=checkbox]').first(); if (!(await kb.isChecked())) await kb.check()
+  await mg.getByRole('button', { name: /Отправить клиенту/ }).click()
+  await cl.getByText('готовим по запросу').last().waitFor({ timeout: 10000 })
+  return 'ответ ушёл клиенту и сохранён в базе знаний'
+})
+await step('Цикл обучения: следующий клиент получает ответ сразу от агента', cl, async () => {
+  await cl.bringToFront(); await cl.getByText('Новый диалог').click(); await cl.waitForTimeout(2500)
+  const a = await ask(Q)
+  must(/1 рабоч|по запросу/i.test(a), 'агент не использовал ответ менеджера: ' + a.slice(0, 80))
+  must(!(await cl.locator('.chat-body .esc').count()), 'снова передал менеджеру'); return a.slice(0, 90)
+})
+await step('Метрики: регламент ответа и «закрыто агентом»', mg, async () => {
+  await mg.bringToFront(); await mg.locator('aside button', { hasText: 'Метрики' }).click(); await mg.waitForTimeout(2000)
+  const t = await mg.locator('.mgr-main').innerText()
+  must(/Регламент ответа/.test(t) && /Первый ответ клиенту/.test(t) && /Закрыто агентом/.test(t), 'нет блока регламента')
+  return t.match(/Первый ответ клиенту \(медиана\)\s*([^\n]+)/)?.[0].replace(/\s+/g, ' ') || 'регламент на месте'
 })
 await step('Опрос в конце диалога (после 45 с тишины)', cl, async () => {
   await cl.bringToFront(); await cl.waitForTimeout(52000)

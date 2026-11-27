@@ -163,3 +163,9 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { text
 .row-form label.grow { flex: 1; min-width: 220px; }
 .row-form input, .row-form select, input.full { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; color: var(--ink); background: #fff; }
 input.full { width: 100%; box-sizing: border-box; margin: 8px 0; }
+
+.help-more { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 12px; }
+.help figure { margin: 0; } .help figcaption { margin-top: 4px; }
+.help-more img { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+.help-table { width: 100%; border-collapse: collapse; font-size: 14px; } .help-table th { text-align: left; background: #FAFAFB; }
+.help-table td, .help-table th { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
