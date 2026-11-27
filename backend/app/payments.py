@@ -1,9 +1,17 @@
-"""Онлайн-оплата через MCP-сервер ЮKassa (https://mcp.yookassa.ru, Streamable HTTP, JSON-RPC 2.0, Bearer-токен MCP).
+"""Онлайн-оплата через MCP-сервер ЮKassa — по документации yookassa.ru/developers/.../mcp-server
+(«Подключение и настройка», «Инструменты», «Сценарии»).
 
-Инструменты MCP-сервера вызывает бэкенд, а не языковая модель: сумма и описание берутся из КП/счёта, который
-рассчитал код по ценам фида, — сервер ЮKassa сам суммы не проверяет (раздел «Ограничения» документации).
-Клиент может оплатить только свой документ; список платежей видит только менеджер. Используются create_payment
-и get_payment (одностадийный платёж, ссылка confirmation_url); возвраты MCP не создаёт — только в кабинете ЮKassa.
+- Сервер https://mcp.yookassa.ru, Streamable HTTP, JSON-RPC 2.0; заголовок Authorization: Bearer <токен MCP>.
+  Токен выпускается в кабинете ЮKassa: Интеграция → Доступы к магазину → «Токены для MCP-сервера» (роль Владелец
+  или Менеджер; срок до 3 лет; к API ЮKassa он не подходит). Блок появляется, только если в магазине выключена
+  отправка чеков (Настройки → Онлайн-касса): через MCP данные для чека передать нельзя.
+- Субаккаунт: необязательный заголовок Mcp-Param-Gateway-Id (переменная YOOKASSA_GATEWAY_ID) — так рекомендует документация.
+- Инструменты: create_invoice / get_invoice — для счёта (корзина из позиций документа, срок до 30 дней; в тестовом
+  магазине счета недоступны — тогда create_payment); create_payment / get_payment — для КП и как запасной путь.
+  Возвраты через MCP не создаются (только get_refund) — их делает менеджер в кабинете ЮKassa.
+- Сценарий «приём оплаты из публичного чата»: языковая модель НЕ получает доступ к инструментам MCP. Их вызывает
+  бэкенд с суммой и позициями из документа, который рассчитал код по ценам фида; клиент может оплатить только свой
+  документ, список платежей видит только менеджер.
 """
 
 from __future__ import annotations
@@ -12,6 +20,7 @@ import itertools
 import json
 import logging
 import os
+import time
 from typing import Any
 
 import httpx
@@ -25,7 +34,7 @@ _ids = itertools.count(1)
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS payments (
   id TEXT PRIMARY KEY, quote_id TEXT, conv_id TEXT, amount REAL, status TEXT, url TEXT, created_by TEXT,
-  created_at REAL, updated_at REAL
+  created_at REAL, updated_at REAL, kind TEXT DEFAULT 'payment'
 );
 """
 
@@ -59,6 +68,8 @@ class MCPClient:
                    'Accept': 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-06-18'}
         if self.session:
             headers['Mcp-Session-Id'] = self.session
+        if os.environ.get('YOOKASSA_GATEWAY_ID'):
+            headers['Mcp-Param-Gateway-Id'] = os.environ['YOOKASSA_GATEWAY_ID']
         r = self.http.post(URL, json=payload, headers=headers)
         if r.status_code >= 400:
             raise PaymentError(f'ЮKassa MCP: HTTP {r.status_code} {r.text[:200]}')
@@ -80,6 +91,12 @@ class MCPClient:
         self._post({'jsonrpc': '2.0', 'id': next(_ids), 'method': 'initialize', 'params': {
             'protocolVersion': '2025-06-18', 'capabilities': {}, 'clientInfo': {'name': 'softline-support-agent', 'version': '1.0'}}})
         self._post({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+
+    def tools(self) -> list[str]:
+        """tools/list: инструмент, которого нет в списке, через MCP-сервер недоступен (например, счета в тестовом магазине)."""
+        self._init()
+        msg = self._post({'jsonrpc': '2.0', 'id': next(_ids), 'method': 'tools/list', 'params': {}}) or {}
+        return [t.get('name', '') for t in msg.get('result', {}).get('tools', [])]
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         self._init()
@@ -104,9 +121,27 @@ class MCPClient:
 _client = MCPClient()
 
 
+_TOOLS: list[str] | None = None
+
+
+def available_tools() -> list[str]:
+    global _TOOLS
+    if _TOOLS is None and mode() == 'mcp':
+        try:
+            _TOOLS = _client.tools()
+        except (PaymentError, httpx.HTTPError) as e:
+            logger.warning('ЮKassa MCP tools/list: %s', e)
+            return []
+    return _TOOLS or []
+
+
 def init() -> None:
     with db.conn() as c:
         c.executescript(SCHEMA)
+        try:
+            c.execute("ALTER TABLE payments ADD COLUMN kind TEXT DEFAULT 'payment'")
+        except Exception:  # noqa: BLE001 — колонка уже есть
+            pass
 
 
 def create_for_quote(qid: str, created_by: str = 'client') -> dict[str, Any]:
@@ -116,9 +151,23 @@ def create_for_quote(qid: str, created_by: str = 'client') -> dict[str, Any]:
     existing = db.one("SELECT * FROM payments WHERE quote_id=? AND status IN ('pending','waiting_for_capture') ORDER BY created_at DESC", (qid,))
     if existing:
         return existing
-    args = {'amount': {'value': f'{q["total"]:.2f}', 'currency': 'RUB'}, 'description': f'Оплата {q["number"]} — store.softline.ru'[:128]}
+    amount = {'value': f'{q["total"]:.2f}', 'currency': 'RUB'}
+    descr = f'Оплата {q["number"]} — store.softline.ru'[:128]
+    kind, res = 'payment', {}
     if mode() == 'mcp':
-        res = _client.call('create_payment', args)
+        if q.get('kind') == 'invoice' and 'create_invoice' in available_tools():
+            # Сценарий «счёт из данных каталога»: корзина = позиции документа, срок оплаты 7 дней (максимум — 30)
+            cart = [{'description': str(i['name'])[:128], 'price': {'value': f'{i["price"]:.2f}', 'currency': 'RUB'},
+                     'quantity': i['quantity']} for i in q['items']]
+            expires = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(time.time() + 7 * 86400))
+            try:
+                res = _client.call('create_invoice', {'amount': amount, 'expires_at': expires, 'cart': cart, 'description': descr})
+                kind, res['confirmation_url'] = 'invoice', res.get('url', '')
+            except PaymentError as e:  # например, тестовый магазин — счёт через MCP недоступен
+                logger.warning('create_invoice: %s — создаю платёж', e)
+                res = {}
+        if not res:
+            res = _client.call('create_payment', {'amount': amount, 'description': descr})
     else:  # демо: тот же контракт ответа, что у create_payment MCP-сервера
         did = 'demo-' + db.new_id()
         from app.config import get_settings
@@ -126,8 +175,10 @@ def create_for_quote(qid: str, created_by: str = 'client') -> dict[str, Any]:
     pid = res.get('id')
     if not pid:
         raise PaymentError('ЮKassa не вернула идентификатор платежа')
-    db.execute('INSERT INTO payments (id, quote_id, conv_id, amount, status, url, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
-               (pid, qid, q['conv_id'], q['total'], res.get('status', 'pending'), res.get('confirmation_url', ''), created_by, db.now(), db.now()))
+    if not res.get('confirmation_url'):
+        raise PaymentError('ЮKassa не вернула ссылку на оплату')
+    db.execute('INSERT INTO payments (id, quote_id, conv_id, amount, status, url, created_by, created_at, updated_at, kind) VALUES (?,?,?,?,?,?,?,?,?,?)',
+               (pid, qid, q['conv_id'], q['total'], res.get('status', 'pending'), res['confirmation_url'], created_by, db.now(), db.now(), kind))
     return db.one('SELECT * FROM payments WHERE id=?', (pid,))
 
 
@@ -135,7 +186,12 @@ def refresh(pid: str) -> dict[str, Any] | None:
     p = db.one('SELECT * FROM payments WHERE id=?', (pid,))
     if p and mode() == 'mcp' and not pid.startswith('demo-') and p['status'] not in ('succeeded', 'canceled'):
         try:
-            res = _client.call('get_payment', {'id': pid})
+            if p.get('kind') == 'invoice':  # статус оплаты счёта — в payment_details после успешной оплаты
+                inv = _client.call('get_invoice', {'id': pid})
+                res = {'status': 'succeeded' if (inv.get('payment_details') or {}).get('status') == 'succeeded' or inv.get('status') == 'succeeded'
+                       else 'canceled' if inv.get('status') in ('canceled', 'expired') else p['status']}
+            else:
+                res = _client.call('get_payment', {'id': pid})
             if res.get('status') and res['status'] != p['status']:
                 db.execute('UPDATE payments SET status=?, updated_at=? WHERE id=?', (res['status'], db.now(), pid))
                 if res['status'] == 'succeeded':

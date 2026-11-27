@@ -15,7 +15,7 @@ OUT = HERE / 'out'
 LIMIT = 178.0  # регламент: до 3 минут
 
 tl = json.loads((OUT / 'timeline.json').read_text())
-texts = {i['id']: i['text'] for i in json.loads((HERE / 'narration.json').read_text(encoding='utf-8'))}
+texts = {i['id']: i.get('sub', i['text']) for i in json.loads((HERE / 'narration.json').read_text(encoding='utf-8'))}
 dur = json.loads((OUT / 'durations.json').read_text())
 raw_len = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(OUT / 'raw.webm')],
                                capture_output=True, text=True).stdout or tl['end'] / 1000)

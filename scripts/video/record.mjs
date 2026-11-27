@@ -8,7 +8,7 @@ const BASE = process.env.BASE || 'https://methodagent.ru'
 const OUT = new URL('./out/', import.meta.url).pathname
 fs.mkdirSync(OUT, { recursive: true })
 const DUR = JSON.parse(fs.readFileSync(OUT + 'durations.json', 'utf8'))  // id → секунды озвучки
-const TEXT = Object.fromEntries(JSON.parse(fs.readFileSync(new URL('./narration.json', import.meta.url), 'utf8')).map(i => [i.id, i.text]))
+const TEXT = Object.fromEntries(JSON.parse(fs.readFileSync(new URL('./narration.json', import.meta.url), 'utf8')).map(i => [i.id, i.sub || i.text]))
 function parts(text) {  // субтитры: предложения, длинные — по запятой
   const out = []
   for (let s of text.split(/(?<=[.!?])\s+/)) {

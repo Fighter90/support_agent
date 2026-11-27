@@ -78,7 +78,18 @@ export default function Chat() {
   const box = useRef<HTMLDivElement>(null)
   const [survey, setSurvey] = useState<{ resolved?: boolean; score?: number; comment: string; sent: boolean }>({ comment: '', sent: false })
   const filledQuotes = new Set(msgs.filter(x => x.meta?.quote && x.meta.quote.status !== 'awaiting_requisites').map(x => x.meta.quote!.quote_id))
-  const answered = msgs.filter(x => x.role !== 'user').length >= 3
+  // Опрос показываем, только когда разговор похоже завершён: была оплата, или клиент молчит 45 с после ответа
+  // (3 мин, если ассистент задал вопрос), и нет незаполненной формы реквизитов. Пока диалог идёт — не мешаем.
+  const lastChange = useRef(Date.now())
+  const [clock, setClock] = useState(Date.now())
+  useEffect(() => { lastChange.current = Date.now() }, [msgs.length, text])
+  useEffect(() => { const t = window.setInterval(() => setClock(Date.now()), 5000); return () => window.clearInterval(t) }, [])
+  const lastMsg = msgs[msgs.length - 1]
+  const paid = msgs.some(x => x.role === 'system' && /Оплата .*получена/.test(x.content))
+  const pendingForm = msgs.some(x => x.meta?.quote?.status === 'awaiting_requisites' && !filledQuotes.has(x.meta.quote.quote_id))
+  const asksQuestion = !!lastMsg && /\?\s*$/.test(lastMsg.content.trim()) && lastMsg.role === 'assistant'
+  const answered = msgs.filter(x => x.role !== 'user').length >= 3 && !!lastMsg && lastMsg.role !== 'user' && !pendingForm && !mgrMode
+    && (paid || clock - lastChange.current > (asksQuestion ? 180000 : 45000))  // на встречный вопрос ассистента ждём дольше
 
   const load = async (id: string, after = 0) => {
     const d = await api<{ messages: Message[] }>(`/api/chat/${id}?after=${after}`)
