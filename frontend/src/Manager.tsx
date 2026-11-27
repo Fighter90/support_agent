@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsDown } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, CheckCircle2, CreditCard, FileText, Headset, LogOut, MessageCircle, MessagesSquare, RefreshCw, Send, ThumbsUp } from 'lucide-react'
 import { useRef } from 'react'
 import { api, dt, rub, setToken, token } from './api'
 import Markdown from './Markdown'
@@ -354,7 +354,7 @@ export default function Manager() {
   const [tab, setTab] = useState<Tab>('live')
   useEffect(() => { const f = () => setAuthed(false); window.addEventListener('sl-logout', f); return () => window.removeEventListener('sl-logout', f) }, [])
   if (!authed) return <Login onOk={() => setAuthed(true)} />
-  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsDown], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
+  const tabs: [Tab, string, any][] = [['live', 'Живой чат', MessageCircle], ['escalations', 'Эскалации', Headset], ['dialogs', 'Диалоги', MessagesSquare], ['quotes', 'КП и счета', FileText], ['feedback', 'Отзывы', ThumbsUp], ['kb', 'База знаний', BookOpen], ['metrics', 'Метрики', BarChart3]]
   return (
     <div className="mgr">
       <aside>
