@@ -63,7 +63,8 @@ TOOLS: list[dict[str, Any]] = [
                        'согласился с выбором. Цены берутся из каталога автоматически. Скидка — только если клиент просит скидку или отсрочку, не больше 5%.',
         'parameters': {'type': 'object', 'properties': {
             'items': {'type': 'array', 'items': {'type': 'object', 'properties': {
-                'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer'}}, 'required': ['offer_id', 'quantity']}},
+                'offer_id': {'type': 'integer'}, 'quantity': {'type': 'integer', 'description': 'Число лицензий: для цен «за узел/пользователя» — число узлов или пользователей клиента'}},
+                'required': ['offer_id', 'quantity']}},
             'document': {'type': 'string', 'enum': ['quote', 'invoice'], 'description': 'КП (по умолчанию) или счёт на оплату'},
             'discount_percent': {'type': 'number', 'description': 'Скидка 0–5% по просьбе клиента; больше — только через менеджера'},
         }, 'required': ['items']}}},

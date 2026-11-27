@@ -20,8 +20,8 @@ function parts(text) {  // субтитры: предложения, длинн�
 
 const W = 1920, H = 1080
 const ctx = await chromium.launchPersistentContext(new URL('./profile', import.meta.url).pathname, {
-  channel: 'chrome', headless: true, viewport: { width: W, height: H }, screen: { width: W, height: H }, deviceScaleFactor: 1,
-  args: [`--window-size=${W},${H}`],
+  channel: 'chrome', headless: false, viewport: { width: W, height: H }, screen: { width: W, height: H }, deviceScaleFactor: 1,
+  args: [`--window-size=${W},${H + 200}`], ignoreDefaultArgs: ['--enable-automation'],
   recordVideo: { dir: OUT, size: { width: W, height: H } },
 })
 const T0 = Date.now()
@@ -37,8 +37,8 @@ html,body{margin:0;height:100%;background:#2b2b2e;font-family:Arial,sans-serif;o
 .lbl{font-size:15px;padding:7px 12px;background:#A20D32;color:#fff;font-weight:700}
 .lbl span{font-weight:400;opacity:.85;margin-left:8px}
 .box{flex:1;position:relative;overflow:hidden}
-#cap{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);max-width:1500px;padding:10px 22px;border-radius:10px;
-background:rgba(20,20,22,.82);color:#fff;font-size:30px;line-height:1.3;text-align:center;display:none;z-index:9}
+#cap{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:1500px;padding:10px 22px;border-radius:10px;
+background:rgba(20,20,22,.82);color:#fff;font-size:28px;line-height:1.3;text-align:center;display:none;z-index:9}
 iframe{border:0;position:absolute;top:0;left:0;width:125%;height:125%;transform:scale(.8);transform-origin:0 0}
 </style></head><body><div class="wrap">
 <div class="pane l"><div class="lbl">Клиент<span>methodagent.ru — витрина store.softline.ru с ИИ-ассистентом</span></div><div class="box"><iframe id="cl" src="/"></iframe></div></div>

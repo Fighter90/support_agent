@@ -10,30 +10,38 @@
 | **Кабинет менеджера** | https://methodagent.ru/manager (учётная запись для жюри — в описании продукта) |
 | **API** | https://methodagent.ru/api/docs |
 | **Модель** | GigaChat 2 Max (основная), YandexGPT Pro 5.1 (резерв) — серверы в РФ |
-| **Документация** | [docs/solution.md](docs/solution.md) · [docs/description.md](docs/description.md) · [docs/cost.xlsx](docs/cost.xlsx) · [docs/video_script.md](docs/video_script.md) |
+| **Материалы для жюри** | https://methodagent.ru/materials/ — видео, описание, расчёт, презентация, руководства, отчёты RAGAS |
+| **Документация** | [docs/solution.md](docs/solution.md) · [docs/description.md](docs/description.md) · [docs/cost.xlsx](docs/cost.xlsx) · [презентация](docs/presentation/presentation.pdf) |
+| **Руководства** | [пользователя](docs/guides/01_user_guide.pdf) · [менеджера и оператора](docs/guides/02_manager_guide.pdf) · [администратора](docs/guides/03_admin_guide.pdf) (есть DOCX) |
+| **Качество** | RAGAS по фиду: recall 0,95 · precision 0,88 · faithfulness 0,90 · correctness 0,90 · цены 1,00 ([отчёт](eval/catalog_rag_report.json)); по базе знаний: faithfulness 0,91 ([отчёт](eval/rag_report.json)) |
 
 ## Что умеет
 
 **Клиент (чат на сайте)**
 - **Знает продукт** («нужен MDaemon Standard»): находит продуктовую линейку в фиде, сверяет версии и редакции (срок, число пользователей, тип организации, новая лицензия или продление), уточняет недостающее. Если точного названия нет — предлагает близкие продукты из каталога.
 - **Не знает решения** («защитить почту и файлы на 50 сотрудников»): задаёт уточняющие вопросы, подбирает 1–2 варианта с обоснованием, находит российский аналог.
-- **Вопросы о покупке и после покупки**: оплата, доставка, НДС, физлица, документы, личный кабинет, статус заказа, ключи, закрывающие документы — RAG по базе знаний (65 статей).
+- **Вопросы о покупке и после покупки**: оплата, доставка, НДС, физлица, документы, личный кабинет, статус заказа, ключи, закрывающие документы — RAG по базе знаний (63 статьи + ответы менеджеров).
 - **КП и счёт на оплату** по шаблону ПАО «Софтлайн»: реквизиты — в защищённой форме мимо модели, PDF сразу в чате.
 - **Скидка до 5%** по просьбе клиента (в том числе вместо отсрочки) — правило заказчика; больше — только менеджер.
 - **Кнопка «Позвать оператора»** и пометка «ИИ-ассистент» на каждом ответе.
+- **Онлайн-оплата счёта** через MCP-сервер ЮKassa (на стенде — демо-режим без списания денег).
+- **Поиск по каталогу на витрине** с подсказками и переходом к ассистенту.
+- **Оценка ответа 👍/👎 и опрос** в конце диалога — на них агент учится.
 
 **Менеджер (кабинет)**
+- **Живой чат на WebSocket**: новые сообщения мгновенно, «печатает…», «Взять диалог» / «Вернуть агенту», быстрые ответы.
 - Очередь эскалаций с причиной и резюме агента; ответ уходит клиенту в его чат.
 - Отметка «добавить в базу знаний» — агент в следующий раз ответит сам.
-- КП и счета: просмотр PDF, подтверждение.
+- КП и счета: просмотр PDF, подтверждение, ссылка на оплату ЮKassa и статус оплаты.
+- Отзывы 👎 → «Исправить и добавить в базу знаний»; CSAT и комментарии из опросов.
 - Журнал всех диалогов: вызовы инструментов, токены, стоимость, задержка, замаскированные ПДн.
 - Метрики: доля решённых без менеджера, эскалации по причинам, стоимость одного запроса, сценарии.
 
 ## Архитектура
 
 ```
-Браузер клиента ──► /api/chat ──► маскирование ПДн ──► агент (function calling, ≤ 6 шагов)
-Браузер менеджера ─► /api/manager                      │  инструменты: search_catalog · get_product_variants ·
+Браузер клиента ──► /api/chat, /ws/chat ──► маскирование ПДн ──► агент (function calling, ≤ 6 шагов)
+Браузер менеджера ─► /api/manager, /ws/manager         │  инструменты: search_catalog · get_product_variants ·
                                                         │  search_knowledge · create_quote · escalate_to_manager
                                                         ▼
                           GigaChat 2 Max ──(ошибка)──► YandexGPT Pro 5.1 ──(ошибка)──► режим без модели
@@ -69,10 +77,11 @@ backend/app/
 backend/tests/  pytest: ПДн, проверка цен, фид, поиск, база знаний, диалог, КП, скидка, счёт
 frontend/src/   React + Vite: Store/Chat (клиент), Manager (кабинет) — фирменный стиль Softline
 data/kb/        база знаний: оплата и доставка store.softline.ru, справка docs.softline.com, FAQ по перепискам
-eval/           оценка на обезличенных переписках (run_eval.py, report.json)
-scripts/        build_kb.py (сборка базы знаний), build_cost_xlsx.py (расчёт стоимости по шаблону организатора)
+eval/           регресс на переписках (run_eval.py), RAGAS по каталогу (catalog_rag_eval.py) и базе знаний (rag_eval.py)
+scripts/        build_kb.py, build_cost_xlsx.py (расчёт по шаблону организатора), build_guides.py, build_materials.py,
+                e2e_realtime.py (сквозной тест), video/ (запись демо одним дублем: Playwright + озвучка + субтитры)
 deploy/         Caddyfile
-docs/           описание решения, описание для сдачи, расчёт стоимости, сценарий видео
+docs/           описание решения и для сдачи, расчёт стоимости, руководства (guides/), презентация, public/ — папка материалов
 ```
 
 ## Запуск
@@ -96,7 +105,17 @@ cd ../frontend && npm install --include=dev && npm run dev                      
 ```bash
 cd backend && ../.venv/bin/python -m pytest -q tests
 cd .. && .venv/bin/python eval/run_eval.py --n 60      # нужны переписки в data/raw/task/chats
+.venv/bin/python eval/catalog_rag_eval.py 8          # RAGAS по каталогу из фида (40 вопросов, судья GigaChat)
+.venv/bin/python eval/rag_eval.py                      # RAGAS по базе знаний
+.venv/bin/python scripts/e2e_realtime.py https://methodagent.ru   # реалтайм, кабинет, оплата
 .venv/bin/python scripts/build_cost_xlsx.py            # пересчёт docs/cost.xlsx по замерам
+```
+
+Демо-видео (один дубль на стенде, ускоряется только ожидание модели):
+
+```bash
+cd scripts/video && npm install && node login.mjs   # вход в кабинет выполняет человек
+python3 make_audio.py && node record.mjs && python3 assemble.py   # → out/demo.mp4, out/demo.srt
 ```
 
 ## Переменные окружения
@@ -108,6 +127,7 @@ cd .. && .venv/bin/python eval/run_eval.py --n 60      # нужны перепи
 | `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDER` | `gigachat` / `yandex` / `mock` |
 | `SECRET_KEY`, `MANAGER_LOGIN/PASSWORD`, `JURY_LOGIN/PASSWORD` | Кабинет менеджера |
 | `FEED_URL` | Фид каталога (по умолчанию Mindbox.yml.gz store.softline.ru) |
+| `YOOKASSA_MCP_TOKEN` | Токен магазина ЮKassa для MCP; пусто — демо-режим оплаты |
 
 ## Наработки и компоненты третьих лиц
 

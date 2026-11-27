@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ИИ-агент поддержки store.softline.ru — ИИкузница</title>
+<style>
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Montserrat', 'Helvetica Neue', Arial, sans-serif; color: #1E1E1E; }
+.s { width: 1280px; height: 720px; padding: 52px 64px; position: relative; overflow: hidden; page-break-after: always; background: #fff; }
+.s.dark { background: #A20D32; color: #fff; }
+.logo { height: 34px; }
+.logo img { height: 34px; }
+.pg { position: absolute; right: 64px; bottom: 26px; font-size: 13px; color: #A7A8AA; }
+h1 { font-size: 54px; line-height: 1.1; margin: 110px 0 22px; }
+h2 { font-size: 34px; margin: 18px 0 24px; color: #A20D32; }
+.dark h2 { color: #fff; }
+.sub { font-size: 22px; opacity: .92; max-width: 960px; line-height: 1.4; }
+.row { display: flex; gap: 24px; }
+.col { flex: 1; }
+.card { background: #F6F6F7; border-radius: 16px; padding: 20px 22px; }
+.card h3 { margin: 0 0 10px; font-size: 20px; color: #A20D32; }
+.card p, li { font-size: 16.5px; line-height: 1.45; margin: 0 0 6px; }
+ul { margin: 0; padding-left: 20px; }
+.big { font-size: 54px; font-weight: 800; color: #A20D32; line-height: 1; }
+.big small { font-size: 22px; font-weight: 600; }
+.lbl { font-size: 15px; color: #6B6B6E; margin-top: 10px; line-height: 1.35; }
+.shot { width: 100%; border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.15); display: block; }
+table { border-collapse: collapse; width: 100%; font-size: 16px; }
+th { background: #A20D32; color: #fff; text-align: left; padding: 9px 12px; }
+td { border-bottom: 1px solid #E5E5E7; padding: 8px 12px; }
+td b { color: #A20D32; }
+.flow { display: flex; align-items: stretch; gap: 10px; margin-top: 10px; }
+.step { flex: 1; background: #F6F6F7; border-radius: 14px; padding: 16px; font-size: 15.5px; line-height: 1.4; }
+.step b { display: block; color: #A20D32; font-size: 17px; margin-bottom: 6px; }
+.arrow { align-self: center; color: #A20D32; font-size: 26px; font-weight: 800; }
+.links { font-size: 21px; line-height: 2.1; }
+.links b { display: inline-block; width: 270px; }
+code { font-size: 14px; background: #fff; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<section class="s dark">
+  <div class="logo"><img src="img/logo_white.png" alt="Софтлайн"></div>
+  <h1>ИИ-агент поддержки<br>store.softline.ru</h1>
+  <div class="sub">Подбирает лицензии по живому каталогу из 136 тыс. позиций, отвечает по базе знаний, оформляет КП и счёт, принимает оплату и передаёт сложные случаи менеджеру в реальном времени.</div>
+  <div class="sub" style="margin-top:44px;font-size:18px">ИИкузница · трек «Клиентские сценарии» · Емельянов Сергей · methodagent.ru</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Проблема и эффект</h2>
+  <div class="row">
+    <div class="col card"><div class="big">~2 <small>мин</small></div><div class="lbl">сейчас ждёт клиент ответа менеджера; 6–8 человек обслуживают чат и почту</div></div>
+    <div class="col card"><div class="big">4 <small>с</small></div><div class="lbl">медиана ответа агента, круглосуточно (регресс на 51 реальном обращении)</div></div>
+    <div class="col card"><div class="big">~82%</div><div class="lbl">обращений агент закрывает сам, остальные — менеджеру с готовым резюме</div></div>
+    <div class="col card"><div class="big">30 <small>мин</small></div><div class="lbl">менеджера экономится на каждом закрытом обращении (оценка заказчика)</div></div>
+  </div>
+  <div class="row" style="margin-top:26px">
+    <div class="col card"><h3>Для клиента</h3><p>Ответ сразу, цены и наличие из актуального фида, КП и счёт в чате, оплата онлайн, живой менеджер по кнопке.</p></div>
+    <div class="col card"><h3>Для Softline</h3><p>Менеджер получает только сложные случаи: тендеры, скидки больше 5%, «цена по запросу». Всё логируется, база знаний пополняется из ответов менеджеров и отзывов.</p></div>
+  </div>
+  <div class="pg">2</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Как работает агент — по алгоритму задания</h2>
+  <div class="flow">
+    <div class="step"><b>Клиент знает продукт</b>«MDaemon Standard на 10 пользователей, продление» → фид → сверка версий и редакций → уточнение недостающего</div>
+    <div class="step"><b>Клиент не знает продукт</b>«Хотим защитить почту и файлы на 50 сотрудников» → вопросы о задаче и инфраструктуре → варианты с обоснованием и российский аналог</div>
+    <div class="step"><b>Вопросы о покупке</b>НДС, оплата, доставка, ключи, закрывающие документы, личный кабинет — ответ по базе знаний</div>
+  </div>
+  <div class="flow" style="margin-top:16px">
+    <div class="step"><b>КП и счёт</b>Шаблон ПАО «Софтлайн», НДС 22%, ПО из реестра без НДС; реквизиты — в форме мимо модели</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Оплата</b>ЮKassa через MCP-сервер: ссылка на оплату в чате (на стенде — демо-режим)</div>
+    <div class="arrow">→</div>
+    <div class="step"><b>Менеджер</b>Скидку до 5% даёт агент; больше, тендер, «цена по запросу», низкая уверенность или кнопка «Позвать оператора» — менеджеру</div>
+  </div>
+  <div class="pg">3</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Клиент и менеджер в реальном времени</h2>
+  <img class="shot" style="width:auto;max-height:548px;margin:0 auto" src="img/live.png" alt="Чат клиента и кабинет менеджера рядом">
+  <div class="pg">4</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Архитектура: один сервер в РФ, один агент</h2>
+  <div class="row">
+    <div class="col card">
+      <h3>Агент — GigaChat 2 Max, function calling</h3>
+      <ul>
+        <li><code>search_catalog</code>, <code>get_product_variants</code> — RAG по фиду</li>
+        <li><code>search_knowledge</code> — RAG по базе знаний: 63 статьи и ответы менеджеров</li>
+        <li><code>create_quote</code> — КП и счёт; цены, количество и НДС проверяет код</li>
+        <li><code>escalate_to_manager</code> — 8 причин передачи</li>
+      </ul>
+    </div>
+    <div class="col card">
+      <h3>Платформа</h3>
+      <ul>
+        <li>FastAPI + WebSocket, React 19, Docker Compose, Caddy (HTTPS)</li>
+        <li>SQLite FTS5 (BM25): 136 040 позиций, обновление фида раз в сутки</li>
+        <li>Каждая сумма в ответе сверяется с ценами фида</li>
+        <li>Резерв — YandexGPT Pro 5.1 через тот же адаптер</li>
+        <li>ЮKassa MCP, WeasyPrint для PDF</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:22px"><h3>Почему RAG, а не дообучение</h3><p>Цены и наличие меняются каждый день, а в переписках нет эталонных ответов. RAG берёт актуальный фид и базу знаний на каждом запросе, а отзывы клиентов и ответы менеджеров улучшают ответы сразу, без переобучения.</p></div>
+  <div class="pg">5</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Качество: RAGAS по фиду и базе знаний</h2>
+  <div class="row">
+    <div class="col">
+      <table>
+        <tr><th>RAG по каталогу, 40 вопросов из фида</th><th>до</th><th>после</th></tr>
+        <tr><td>context recall</td><td>0,72</td><td><b>0,95</b></td></tr>
+        <tr><td>context precision</td><td>0,62</td><td><b>0,88</b></td></tr>
+        <tr><td>faithfulness</td><td>0,78</td><td><b>0,90</b></td></tr>
+        <tr><td>answer relevancy</td><td>0,78</td><td><b>0,93</b></td></tr>
+        <tr><td>answer correctness</td><td>0,56</td><td><b>0,90</b></td></tr>
+        <tr><td>цены в ответе есть в фиде</td><td>0,88</td><td><b>1,00</b></td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <table>
+        <tr><th>База знаний, 20 вопросов</th><th></th></tr>
+        <tr><td>context recall / precision</td><td><b>0,85 / 0,87</b></td></tr>
+        <tr><td>faithfulness / relevancy</td><td><b>0,91 / 0,93</b></td></tr>
+      </table>
+      <table style="margin-top:16px">
+        <tr><th>Регресс и сквозные тесты</th><th></th></tr>
+        <tr><td>51 реальное обращение: маршрутизация / ошибки</td><td><b>74,5% / 0</b></td></tr>
+        <tr><td>Реалтайм, кабинет, оплата (e2e)</td><td><b>22 / 22</b></td></tr>
+      </table>
+      <p style="font-size:14px;color:#6B6B6E;margin-top:14px">Судья — GigaChat 2 Max. Эталоны генерируются из фида с фиксированным seed; отчёты лежат в eval/*.json.</p>
+    </div>
+  </div>
+  <div class="pg">6</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>Кабинет менеджера</h2>
+  <div class="row">
+    <div class="col" style="flex:1.35"><img class="shot" src="img/manager.png" alt="Кабинет менеджера"></div>
+    <div class="col card">
+      <ul>
+        <li>Живой чат на WebSocket: доставка 0,07–0,7 с, «печатает…», перехват диалога, быстрые ответы</li>
+        <li>Эскалации с причиной и резюме агента; ответ может стать статьёй базы знаний</li>
+        <li>КП и счета: подтверждение, PDF, ссылка на оплату ЮKassa</li>
+        <li>Отзывы 👎 → исправление в базе знаний; 👍 → примеры для агента</li>
+        <li>Метрики: CSAT, доля решённых, токены и стоимость</li>
+      </ul>
+    </div>
+  </div>
+  <div class="pg">7</div>
+</section>
+
+<section class="s">
+  <div class="logo"><img src="img/logo.png" alt="Софтлайн"></div>
+  <h2>152-ФЗ и экономика</h2>
+  <div class="row">
+    <div class="col card">
+      <h3>Данные остаются в России</h3>
+      <ul>
+        <li>GigaChat и сервер Timeweb находятся в РФ: трансграничной передачи нет (ст. 12, ч. 5 ст. 18)</li>
+        <li>ПДн маскируются до отправки в модель</li>
+        <li>Реквизиты для счёта вводятся в форму и идут мимо модели</li>
+        <li>Для продакшена нужен договор GigaChat с поручением на обработку ПДн</li>
+      </ul>
+    </div>
+    <div class="col card">
+      <h3>Стоимость (шаблон организатора)</h3>
+      <ul>
+        <li>Запрос — 5,4 тыс. токенов, 2,86 ₽ без НДС; в длинном диалоге ×2,2</li>
+        <li>500 обращений за полгода: ~131 тыс. токенов в день, модели ~2,1 тыс. ₽/мес, всё содержание ~13 тыс. ₽/мес</li>
+        <li>Экономия времени менеджеров ~37 тыс. ₽/мес, эффект ~+24 тыс. ₽/мес</li>
+        <li>500 обращений в день: модели ~378 тыс. ₽/мес при экономии ~6,7 млн ₽/мес</li>
+      </ul>
+    </div>
+  </div>
+  <div class="pg">8</div>
+</section>
+
+<section class="s dark">
+  <div class="logo"><img src="img/logo_white.png" alt="Софтлайн"></div>
+  <h2>Попробуйте</h2>
+  <div class="links">
+    <div><b>Стенд</b>https://methodagent.ru</div>
+    <div><b>Кабинет менеджера</b>https://methodagent.ru/manager</div>
+    <div><b>Репозиторий</b>github.com/Fighter90/support_agent</div>
+    <div><b>Материалы</b>https://methodagent.ru/materials/</div>
+  </div>
+  <div class="sub" style="margin-top:34px;font-size:18px">Дальше: встраивание в виджет WebIM, уведомления в Telegram, боевой магазин ЮKassa, маршрутизация простых вопросов на GigaChat Lite (в 10 раз дешевле).</div>
+</section>
+
+</body>
+</html>

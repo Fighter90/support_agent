@@ -164,6 +164,7 @@ def ingest(src: str | None = None) -> dict[str, Any]:
         'domestic': con.execute("SELECT count(*) FROM offers WHERE registry<>''").fetchone()[0],
         'loaded_at': time.strftime('%Y-%m-%d %H:%M:%S'),
         'seconds': round(time.time() - t0, 1),
+        'priced_rule': True,
     }
     con.execute('INSERT INTO meta VALUES (?, ?)', ('stats', json.dumps(stats, ensure_ascii=False)))
     con.commit()
@@ -184,15 +185,27 @@ def _db() -> sqlite3.Connection:
     return con
 
 
+_STATS_CACHE: dict[float, dict[str, Any]] = {}
+
+
 def stats() -> dict[str, Any]:
     p = get_settings().catalog_db
     if not p.exists() or p.stat().st_size == 0:
         return {}
+    key = p.stat().st_mtime
+    if key in _STATS_CACHE:
+        return dict(_STATS_CACHE[key])
     try:
         con = sqlite3.connect(f'file:{p}?mode=ro', uri=True)  # только чтение: не создаёт пустой файл
         try:
             r = con.execute("SELECT value FROM meta WHERE key='stats'").fetchone()
-            return json.loads(r[0]) if r else {}
+            st = json.loads(r[0]) if r else {}
+            if st and not st.get('priced_rule'):  # индекс собран до правила «есть цена — в наличии»: пересчитываем
+                st['available_priced'] = con.execute('SELECT count(*) FROM offers WHERE price>0').fetchone()[0]
+                st['priced_rule'] = True
+            _STATS_CACHE.clear()
+            _STATS_CACHE[key] = st
+            return dict(st)
         finally:
             con.close()
     except sqlite3.Error:

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import html
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,12 @@ def _vat(price_total: float, domestic: bool) -> float:
 MAX_AUTO_DISCOUNT = 5.0  # заказчик на установочной встрече: агент сам даёт до 5%, больше — только менеджер
 
 
+def _tier(o: dict[str, Any]) -> tuple[int, int]:
+    """Диапазон количества, для которого действует цена за единицу (поля фида «К-во узлов» / «К-во пользователей до»)."""
+    nums = [int(x) for x in re.findall(r'\d+', f"{o.get('nodes') or ''}")]
+    return (min(nums), max(nums)) if len(nums) >= 2 else (1, 10 ** 6)
+
+
 def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 0, kind: str = 'quote') -> dict[str, Any]:
     discount = float(discount_percent or 0)
     if discount < 0 or discount > MAX_AUTO_DISCOUNT:
@@ -45,8 +52,14 @@ def create(conv_id: str, items: list[dict[str, Any]], discount_percent: float = 
         if not o:
             problems.append(f'позиция {oid} не найдена в каталоге')
             continue
-        if not o['price'] or not o['available']:
-            problems.append(f'«{o["name"]}» — цена не опубликована или позиция недоступна, нужен расчёт менеджера')
+        if not o['price']:  # правило заказчика: позиция с ценой — в наличии; без цены — расчёт менеджера
+            problems.append(f'«{o["name"]}» — цена не опубликована, нужен расчёт менеджера')
+            continue
+        lo, hi = _tier(o)
+        if lo > 1 and not lo <= qty <= hi:  # цена за 1 узел/пользователя в диапазоне: количество = число узлов клиента
+            problems.append(f'«{o["name"]}» — цена указана за 1 узел/пользователя при количестве {lo}–{hi}; '
+                            f'quantity должно быть числом узлов клиента в этом диапазоне (сейчас {qty}). '
+                            'Если число клиента вне диапазона — возьми вариант с подходящим диапазоном.')
             continue
         price = round(o['price'] * (1 - discount / 100), 2)
         total = round(price * qty, 2)

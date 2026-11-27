@@ -54,7 +54,7 @@ export default function Store() {
           <p>Назовите продукт — агент сверит версии и редакции по каталогу. Не знаете, что нужно, — опишите задачу: он задаст уточняющие вопросы и предложит варианты с обоснованием, а после согласия подготовит коммерческое предложение.</p>
           <div className="facts">
             <div><b>{stats.offers ? stats.offers.toLocaleString('ru-RU') : '136 040'}</b><span>позиций в каталоге</span></div>
-            <div><b>{stats.available_priced ? stats.available_priced.toLocaleString('ru-RU') : '44 601'}</b><span>с ценой онлайн</span></div>
+            <div><b>{stats.available_priced ? stats.available_priced.toLocaleString('ru-RU') : '55 771'}</b><span>с ценой — в наличии</span></div>
             <div><b>{stats.domestic ? stats.domestic.toLocaleString('ru-RU') : '1 208'}</b><span>из реестра отечественного ПО</span></div>
           </div>
           <ul className="bullets">

@@ -1,0 +1,1099 @@
+{
+ "summary": {
+  "context_recall": 0.95,
+  "context_precision": 0.877,
+  "faithfulness": 0.897,
+  "answer_relevancy": 0.925,
+  "answer_correctness": 0.9,
+  "price_faithfulness": 1.0,
+  "questions": 40,
+  "feed_offers": 136040,
+  "feed_loaded_at": "2026-11-26 23:00:45"
+ },
+ "by_type": {
+  "price": {
+   "context_recall": 1.0,
+   "context_precision": 0.875,
+   "faithfulness": 0.938,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "n": 8
+  },
+  "url": {
+   "context_recall": 0.75,
+   "context_precision": 0.625,
+   "faithfulness": 0.875,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "n": 4
+  },
+  "editions": {
+   "context_recall": 1.0,
+   "context_precision": 0.976,
+   "faithfulness": 0.975,
+   "answer_relevancy": 0.969,
+   "answer_correctness": 0.812,
+   "price_faithfulness": 1.0,
+   "n": 8
+  },
+  "vendor": {
+   "context_recall": 0.875,
+   "context_precision": 0.838,
+   "faithfulness": 0.917,
+   "answer_relevancy": 0.969,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "n": 8
+  },
+  "no_price": {
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.5,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "n": 4
+  },
+  "need": {
+   "context_recall": 1.0,
+   "context_precision": 0.882,
+   "faithfulness": 0.719,
+   "answer_relevancy": 0.938,
+   "answer_correctness": 0.688,
+   "price_faithfulness": 1.0,
+   "n": 8
+  }
+ },
+ "results": [
+  {
+   "type": "price",
+   "question": "Сколько стоит «Endian Switchboard (лицензия на 1 год), 150 Subscription»?",
+   "reference": "Endian Switchboard (лицензия на 1 год), 150 Subscription — 1905875.00 ₽",
+   "answer": "Стоимость Endian Switchboard (лицензия на 1 год), 150 Subscription составляет 1 905 875 рублей. Хотите оформить заказ или нужна дополнительная информация?",
+   "contexts": [
+    "Endian Switchboard | Endian | Антивирусы и безопасность / Интернет и Сеть | от 182646.0 до 13023483.0 ₽ | ",
+    "Endian Switchboard (лицензия на 1 год), 150 Subscription — 1905875.0 ₽",
+    "Endian Switchboard (лицензия на 1 год), 150 Subscription — 1905875.0 ₽",
+    "Endian Switchboard (лицензия на 3 года), 150 Subscription — 4605866.0 ₽",
+    "Endian 4i Edge | Endian | Антивирусы и безопасность / Интернет и Сеть | от 4764.0 до 3882428.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1905875.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «Flexera Software, Inc Flexera InstallShield Professional (возобновление техподдержки), Bronze»?",
+   "reference": "Flexera Software, Inc Flexera InstallShield Professional (возобновление техподдержки), Bronze — 106685.00 ₽",
+   "answer": "Стоимость возобновления технической поддержки для Flexera InstallShield Professional, Bronze составляет **106 685 ₽**. Нужна помощь с оформлением заказа или есть другие вопросы?",
+   "contexts": [
+    "Flexera InstallShield Professional Spring | Flexera Software, Inc | Программы для программирования / Программы для разработки ПО | от 106685.0 до 172723.0 ₽ | ",
+    "Flexera Software, Inc Flexera InstallShield Professional (возобновление техподдержки), Bronze — 106685.0 ₽",
+    "Flexera Software, Inc Flexera InstallShield Professional (возобновление техподдержки), Bronze — 106685.0 ₽",
+    "Flexera Software, Inc Flexera InstallShield Professional (возобновление техподдержки), Silver — 129457.0 ₽",
+    "Flexera InstallShield Express Spring | Flexera Software, Inc | Программы для программирования / Программы для разработки ПО | от 37118.0 до 62053.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    106685.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users»?",
+   "reference": "EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users — 555628.00 ₽",
+   "answer": "Стоимость «EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users» составляет 555 628 рублей. Хотите оформить заказ?",
+   "contexts": [
+    "Private eazyBI | EazyOne SIA | Системные программы / Другие системные утилиты | от 277814.0 до 1389070.0 ₽ | ",
+    "EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users — 555628.0 ₽",
+    "EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users — 555628.0 ₽",
+    "EazyOne SIA Private eazyBI (лицензия на 1 год), 20 Users — 555628.0 ₽",
+    "Altova SchemaAgent 2026 | Altova | Программы для программирования / Программы для разработки ПО | от 5916.0 до 9718378.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.5,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    555628.0
+   ],
+   "unsupported": [
+    "Хотите оформить заказ?"
+   ]
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «Современные программные технологии Fenix+ 3 Professional (лицензия), на 1 год»?",
+   "reference": "Современные программные технологии Fenix+ 3 Professional (лицензия), на 1 год — 102700.00 ₽",
+   "answer": "Стоимость «Современные программные технологии Fenix+ 3 Professional (лицензия), на 1 год» составляет 102 700 рублей. Нужна помощь с оформлением заказа или есть другие вопросы?",
+   "contexts": [
+    "Fenix+ 3 | Современные программные технологии | Программы САПР и ГИС / Программы для пожарной безопасности | от 87300.0 до 160000.0 ₽ | ",
+    "Современные программные технологии Fenix+ 3 Professional (лицензия), на 1 год — 102700.0 ₽",
+    "Современные программные технологии Fenix+ 3 Professional (продление лицензии), на 1 год — 87300.0 ₽",
+    "Современные программные технологии Fenix+ 3 Professional (лицензия), на 1 год — 102700.0 ₽",
+    "Fenix Server | Современные программные технологии | Программы САПР и ГИС / Программы для пожарной безопасности | от 52200.0 до 65200.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    102700.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «EMS Data Import for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год»?",
+   "reference": "EMS Data Import for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год — 12883.00 ₽",
+   "answer": "Стоимость EMS Data Import for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год составляет **12883 ₽**. Нужна помощь с оформлением заказа или есть другие вопросы?",
+   "contexts": [
+    "EMS Data Import for MySQL | EMS | Программы для программирования / Программы для работы с базами данных | от 3221.0 до 21901.0 ₽ | ",
+    "EMS Data Import for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год — 12883.0 ₽",
+    "EMS Data Import for MySQL (техподдержка для коммерческой лицензии Business), 1 год — 6442.0 ₽",
+    "EMS Data Import for MySQL (техподдержка для коммерческой лицензии Business), 2 года — 10307.0 ₽",
+    "EMS Data Import for PostgreSQL | EMS | Программы для программирования / Программы для работы с базами данных | от 3221.0 до 21901.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    12883.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию»?",
+   "reference": "MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию — 2375.00 ₽",
+   "answer": "Стоимость MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию составляет 2375 ₽. Хотите оформить заказ или нужна дополнительная информация?",
+   "contexts": [
+    "MAGIX Video Deluxe | Magix | Мультимедиа / Видеоредакторы | от 2375.0 до 3375.0 ₽ | ",
+    "MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию — 2375.0 ₽",
+    "MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию — 2375.0 ₽",
+    "MAGIX Video Deluxe Plus (лицензия ESD), цена за 1 лицензию — 3375.0 ₽",
+    "MAGIX Fastcut | Magix | Мультимедиа / Видеоредакторы | от 2125.0 до 2125.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    2375.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «EMS SQL Manager for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год»?",
+   "reference": "EMS SQL Manager for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год — 24960.00 ₽",
+   "answer": "Стоимость EMS SQL Manager for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год составляет **24960 ₽**. Нужна помощь с оформлением заказа или есть другие вопросы?",
+   "contexts": [
+    "EMS SQL Manager for MySQL | EMS | Программы для программирования / Программы для работы с базами данных | от 800.0 до 42432.0 ₽ | ",
+    "EMS SQL Manager for MySQL (коммерческая лицензия Business), Лицензия + техподдержка на 1 год — 24960.0 ₽",
+    "EMS SQL Manager for MySQL (техподдержка для коммерческой лицензии Business), 1 год — 12480.0 ₽",
+    "EMS SQL Manager for MySQL (техподдержка для коммерческой лицензии Business), 2 года — 19968.0 ₽",
+    "EMS SQL Query for MySQL | EMS | Программы для программирования / Программы для работы с базами данных | от 3221.0 до 21901.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    24960.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "price",
+   "question": "Сколько стоит «Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for industry»?",
+   "reference": "Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for industry — 349411.00 ₽",
+   "answer": "Стоимость продукта «Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for industry» составляет **349 411 ₽**. \n\nЕсли вы хотите оформить заказ или уточнить детали, напишите мне об этом.",
+   "contexts": [
+    "Cervenka ATENA | Cervenka Consulting | Программы САПР и ГИС / Строительное программное обеспечение | от 34941.0 до 960879.0 ₽ | ",
+    "Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for industry — 349411.0 ₽",
+    "Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for industry — 349411.0 ₽",
+    "Cervenka Consulting Cervenka Creep, Лицензия PERMANENT (Provides creep and shrinkage Analysis), for universities — 174705.0 ₽",
+    "Cervenka GiD | Cervenka Consulting | Программы САПР и ГИС / Строительное программное обеспечение | от 104823.0 до 414052.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    349411.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "url",
+   "question": "Сколько стоит вот это: https://store.softline.ru/kaspersky/kl4221rapdw-4155/ ?",
+   "reference": "Kaspersky Security для систем хранения данных Cross-grade на лицензию на 2 года. Количество пользователей (артикул 4155) — 1555.20 ₽",
+   "answer": "Позиция Kaspersky Security для систем хранения данных Cross-grade на лицензию на 2 года стоит 1555.2 ₽. Это точное совпадение по вашей ссылке. Хотите оформить заказ?",
+   "contexts": [
+    "Kaspersky Security для систем хранения данных | «Лаборатория Касперского» | Антивирусы и безопасность / Антивирусы для организаций | от 333.9 до 1346716.07 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Kaspersky Security для систем хранения данных Cross-grade на лицензию на 2 года. Количество пользователей — 1555.2 ₽",
+    "Kaspersky Security для систем хранения данных для серверов академическая лицензия на 1 год. Количество серверов — 448905.36 ₽",
+    "Kaspersky Security для систем хранения данных для серверов академическая лицензия на 1 год. Количество серверов — 448905.36 ₽",
+    "Kaspersky Embedded Systems Security | «Лаборатория Касперского» | Антивирусы и безопасность / Антивирусы для организаций | от 4104.9 до 25092.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.5,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1555.2
+   ],
+   "unsupported": [
+    "Это точное совпадение по вашей ссылке."
+   ]
+  },
+  {
+   "type": "url",
+   "question": "Сколько стоит вот это: https://store.softline.ru/asus/90mb1ip0-m0eay0-490154/ ?",
+   "reference": "Материнская плата ASUS Intel Z890 ROG MAXIMUS Z890 APEX (артикул 490154) — 71799.00 ₽",
+   "answer": "Стоимость материнской платы ASUS Intel Z890 ROG MAXIMUS Z890 APEX составляет 71799 ₽. Хотите оформить заказ?",
+   "contexts": [
+    "Материнские платы | ASUS | Комплектующие | от 71799.0 до 71799.0 ₽ | ",
+    "Материнская плата ASUS Intel Z890 ROG MAXIMUS Z890 APEX — 71799.0 ₽",
+    "Материнская плата ASUS Intel Z890 ROG MAXIMUS Z890 APEX — 71799.0 ₽",
+    "Материнские платы | ASUS | Комплектующие | от 13415.0 до 13415.0 ₽ | ",
+    "Материнская плата/ PRIME B760M-F WIFI — 13415.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 0.0,
+   "context_precision": 0.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    71799.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "url",
+   "question": "Сколько стоит вот это: https://store.softline.ru/zoho/86901-0n3-420587/ ?",
+   "reference": "Zoho Corporation Pvt. Ltd. Zoho ManageEngine RMM Central (лицензия Enterprise Edition Perpetual Model Single (артикул 420587) — 1143037.00 ₽",
+   "answer": "Позиция, на которую вы дали ссылку, называется \"Zoho Corporation Pvt. Ltd. Zoho ManageEngine RMM Central (лицензия Enterprise Edition Perpetual Model Single)\" и стоит 1 143 037 рублей. Это полная бессрочная лицензия. Нужна помощь с оформлением заказа?",
+   "contexts": [
+    "Zoho ManageEngine RMM Central | Zoho Corporation Pvt. Ltd. | Сеть и интернет / Серверное ПО | от 12523.0 до 11363754.0 ₽ | ",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine RMM Central (лицензия Enterprise Edition Perpetual Model Single — 1143037.0 ₽",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine RMM Central (техподдержка Add-ons Perpetual Model Browser Security — 1025702.0 ₽",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine RMM Central (техподдержка Add-ons Perpetual Model Browser Security — 683696.0 ₽",
+    "Zoho ManageEngine Desktop Central | Zoho Corporation Pvt. Ltd. | Управление бизнесом, CRM/ERP / Системы автоматизации | от 15469.0 до 14205035.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.5,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1143037.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "url",
+   "question": "Сколько стоит вот это: https://store.softline.ru/zoho/81010-0sacpca2-536176/ ?",
+   "reference": "Zoho Corporation Pvt. Ltd. Zoho ManageEngine Endpoint Central MSP Cloud Addons (годовая подписка Application Control (артикул 536176) — 136276.00 ₽",
+   "answer": "Позиция, которую вы указали, стоит **136 276 ₽**. Это годовая подписка на Zoho ManageEngine Endpoint Central MSP Cloud Addons (Application Control). \n\nЕсли вас устраивает этот вариант, могу подготовить коммерческое предложение или счёт на оплату. Или нужен другой продукт?",
+   "contexts": [
+    "Zoho ManageEngine Endpoint Central | Zoho Corporation Pvt. Ltd. | Антивирусы и безопасность / Программы для защиты информации | от 2420.0 до 14205140.0 ₽ | ",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine Endpoint Central MSP Cloud Addons (годовая подписка Application Control — 136276.0 ₽",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine Endpoint Central (техподдержка Perpetual Licensing Model Endpoint Security — 1204703.0 ₽",
+    "Zoho Corporation Pvt. Ltd. Zoho ManageEngine Endpoint Central (техподдержка Perpetual Licensing Model Endpoint Security — 752203.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    136276.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты Cervenka ATENA у вас есть и от какой цены?",
+   "reference": "Cervenka ATENA (Cervenka Consulting): 28 вариантов с ценой, минимальная цена 34941.00 ₽",
+   "answer": "В нашем ассортименте представлены различные варианты Cervenka ATENA:\n\n- **Cervenka Consulting Cervenka ATENA, Лицензия preprocessor** — $34\\,941$ ₽  \n- **Cervenka Consulting Cervenka ATENA 2D** — $43\\,676$ ₽  \n- **Cervenka Consulting Cervenka 3D printing** — $52\\,412$ ₽  \n- **Cervenka Consulting Cervenka ATENA Basic 2D** — $122\\,294$ ₽\n\nЦены указаны за полную версию, бессрочную лицензию. Есть также специализированные модули для анализа транспорта, динамики и других задач. Какой функционал вам необходим?",
+   "contexts": [
+    "Cervenka ATENA | Cervenka Consulting | Программы САПР и ГИС / Строительное программное обеспечение | от 34941.0 до 960879.0 ₽ | ",
+    "Cervenka Consulting Cervenka ATENA 2D (лицензия Computer simulation of concrete structures with basic core program for — 85605.0 ₽",
+    "Cervenka Consulting Cervenka ATENA, Лицензия preprocessor (Native Atena GUE for 2D and 3D modelling and nonlinear — 244588.0 ₽",
+    "Cervenka Consulting Cervenka ATENA, Лицензия preprocessor (Native Atena GUE for 2D and 3D modelling and nonlinear — 122294.0 ₽",
+    "Cervenka Atena-C4A | Cervenka Consulting | Программы САПР и ГИС / Строительное программное обеспечение | от 1048231.0 до 2096463.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты Astra Monitoring у вас есть и от какой цены?",
+   "reference": "Astra Monitoring (Группа Астра): 26 вариантов с ценой, минимальная цена 1200.00 ₽",
+   "answer": "В нашем ассортименте представлены различные варианты Astra Monitoring:\n\n- **Астра Мониторинг РДЦП.10601-01**, на 1 единицу оборудования, электронная, бессрочная — от 3600 ₽  \n- **Астра Мониторинг РДЦП.10601-01**, на 1 АРМ, электронная, бессрочная — от 5100 ₽  \n- **Астра Мониторинг РДЦП.10601-01**, на 1 единицу оборудования, электронная, на 12 месяцев — от 1200 ₽\n\nЕсли нужна помощь с выбором подходящей конфигурации или хотите уточнить детали, напишите подробнее о ваших потребностях.",
+   "contexts": [
+    "Astra Monitoring | Группа Астра | Управление бизнесом, CRM/ERP / Системы автоматизации | от 1200.0 до 233000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Астра Мониторинг РДЦП.10601-01, на 1 единицу прочего оборудования, электронный, на срок действия исключительного права, — 4680.0 ₽",
+    "Астра Мониторинг РДЦП.10601-01, на 1 Хост, электронный, на срок действия исключительного права, с включенными — 133000.0 ₽",
+    "Астра Мониторинг РДЦП.10601-01, на 1 Хост, электронный, на срок действия исключительного права, с включенными — 183000.0 ₽",
+    "Astra Automation | Группа Астра | Управление бизнесом, CRM/ERP / Системы автоматизации | от 1147500.0 до 9262500.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    3600.0,
+    5100.0,
+    1200.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты CSoft СПДС Стройплощадка у вас есть и от какой цены?",
+   "reference": "CSoft СПДС Стройплощадка (CSoft Development): 18 вариантов с ценой, минимальная цена 22700.00 ₽",
+   "answer": "Доступны следующие варианты CSoft СПДС Стройплощадка:\n\n- Подписка на обновления на 1 год — от 22 700 ₽  \n- Полная лицензия на 1 год — от 69 100 ₽  \n- Обновления с предыдущей версии — от 45 000 ₽\n\nЕсть разные типы лицензий: локальные и сетевые, а также возможность продлить подписку на 2 или 3 года. Какой вариант вам интересен?",
+   "contexts": [
+    "CSoft СПДС Стройплощадка | CSoft Development | Программы САПР и ГИС / Инфраструктура: изыскания, генплан, транспорт | от 22700.0 до 150300.0 ₽ | ",
+    "CSoft Development СПДС Стройплощадка 2026 (обновление), с предыдущих версий, локальная лицензия — 90200.0 ₽",
+    "CSoft Development СПДС Стройплощадка 2026 (обновление), с версии 2025.x, локальная лицензия — 45000.0 ₽",
+    "CSoft Development СПДС Стройплощадка 2026 (обновление), с предыдущих версий, сетевая лицензия, доп. место — 90200.0 ₽",
+    "CSoft СПДС Металлоконструкции | CSoft Development | Программы САПР и ГИС / Строительное программное обеспечение | от 11300.0 до 75400.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    22700.0,
+    69100.0,
+    45000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты HyperMethod eClass у вас есть и от какой цены?",
+   "reference": "HyperMethod eClass (ГиперМетод): 2 вариантов с ценой, минимальная цена 1159000.00 ₽",
+   "answer": "В нашем ассортименте представлены следующие варианты HyperMethod eClass:\n\n- **Платформа для проведения видеоконференций, вебинаров, виртуальных классов**, на 1 сервер — от 1 159 000 ₽  \n- **eAuthor.Cloud (лицензия на 1 рабочее место)** — от 1 159 000 ₽\n\nЕсли нужна помощь с выбором или оформлением заказа, обращайтесь!",
+   "contexts": [
+    "HyperMethod eClass | ГиперМетод | Программное обеспечение для дистанционного обучения / Программное обеспечение для интернета | от 1159000.0 до 1159000.0 ₽ | ",
+    "ГиперМетод eClass (платформа для проведения видеоконференций, вебинаров, виртуальных классов), на 1 сервер — 1159000.0 ₽",
+    "ГиперМетод eClass (платформа для проведения видеоконференций, вебинаров, виртуальных классов), на 1 сервер — 1159000.0 ₽",
+    "ГиперМетод eClass (платформа для проведения вебинаров и видеоконференций, виртуальных классов и тренингов — 1159000.0 ₽",
+    "HyperMethod Assessment Tools | ГиперМетод | Управление бизнесом, CRM/ERP / Системы автоматизации | от 610000.0 до 2440000.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.806,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.75,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1159000.0,
+    1159000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты Wondershare MobileTrans у вас есть и от какой цены?",
+   "reference": "Wondershare MobileTrans (Wondershare): 18 вариантов с ценой, минимальная цена 2198.00 ₽",
+   "answer": "В нашем ассортименте представлены различные варианты Wondershare MobileTrans:\n\n- **Wondershare MobileTrans (лицензия на 1 месяц)** — от 2198 ₽  \n- **Wondershare MobileTrans (лицензия Individual for Mobile), Standard Plan** — 2661 ₽  \n- **Wondershare MobileTrans (лицензия Individual for Mobile), Premium Plan** — 4282 ₽\n\nЕсть также академические лицензии сроком на 1 год. Какой функционал вам нужен и какая лицензия интересует?",
+   "contexts": [
+    "Wondershare MobileTrans | Wondershare | Программное обеспечение для работы с файлами и дисками / Программное обеспечение для резервного копирования | от 2198.0 до 69447.0 ₽ | ",
+    "Wondershare MobileTrans (лицензия на 1 месяц), Individual for Windows WhatsApp Transfer — 3472.0 ₽",
+    "Wondershare MobileTrans (лицензия Individual for Mobile), Premium Plan — 4282.0 ₽",
+    "Wondershare MobileTrans (лицензия Individual for Mobile), Standard Plan — 2661.0 ₽",
+    "Wondershare Filmstock | Wondershare | Мультимедиа / Видеоредакторы | от 1157.0 до 3009.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    2198.0,
+    2661.0,
+    4282.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты Spire.Office for Android via Java у вас есть и от какой цены?",
+   "reference": "Spire.Office for Android via Java (e-iceblue): 4 вариантов с ценой, минимальная цена 274435.00 ₽",
+   "answer": "Доступны следующие варианты Spire.Office for Android via Java:\n\n- Подписка Developer — от 274 435 ₽  \n- Подписка OEM — от 866 951 ₽  \n- Подписка Enterprise — от 1 228 241 ₽  \n- Полная лицензия — от 4 145 873 ₽\n\nЕсли нужна помощь с выбором или оформлением заказа, обращайтесь!",
+   "contexts": [
+    "Spire.Office for Android via Java | e-iceblue | Программы для программирования / Программы для разработки ПО | от 274435.0 до 4145873.0 ₽ | ",
+    "e-iceblue Spire.Office for Android via Java (лицензия), — 4145873.0 ₽",
+    "e-iceblue Spire.Office for Android via Java (лицензия), — 4145873.0 ₽",
+    "e-iceblue Spire.Office for Android via Java (подписка OEM), — 866951.0 ₽",
+    "Spire.Doc for Android via Java | e-iceblue | Программы для программирования / Программы для разработки ПО | от 115469.0 до 1746909.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    274435.0,
+    866951.0,
+    1228241.0,
+    4145873.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты ОС3. Интерактивная таблица Менделеева Д.И. у вас есть и от какой цены?",
+   "reference": "ОС3. Интерактивная таблица Менделеева Д.И. (ОС3): 7 вариантов с ценой, минимальная цена 7600.00 ₽",
+   "answer": "В нашем ассортименте представлены следующие варианты интерактивной таблицы Менделеева:\n\n- **OC3 DVD ОС3, Интерактивная таблица Менделеева Д.И, 1.6 (электронная лицензия с носителем)** — бессрочная лицензия на одно рабочее место, цена от 15 200 ₽  \n- **OC3 DVD ОС3, Интерактивная таблица Менделеева Д.И, 1.6 (электронная лицензия с носителем)** — бессрочная лицензия, цена 367 000 ₽\n\nКакой вариант вам интересен? Нужна помощь с оформлением заказа?",
+   "contexts": [
+    "ОС3. Интерактивная таблица Менделеева Д.И. | ОС3 | Программы для образования и науки / Обучающие программы | от 7600.0 до 367000.0 ₽ | ",
+    "OC3 DVD ОС3, Интерактивная таблица Менделеева Д.И, 1.6 (электронная лицензия с носителем), бессрочная лицензия на — 367000.0 ₽",
+    "OC3 DVD ОС3, Интерактивная таблица Менделеева Д.И, 1.6 (электронная лицензия с носителем), бессрочная лицензия на 1 — 15200.0 ₽",
+    "OC3 DVD ОС3, Интерактивная таблица Менделеева Д.И, 1.6 (электронная лицензия с носителем), лицензия на 1 рабочее место — 7600.0 ₽",
+    "ОС3. Интерактивная доска 3.1 | ОС3 | Программы для образования и науки / Обучающие программы | от 4800.0 до 9500.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    15200.0,
+    367000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "editions",
+   "question": "Какие варианты IndorPavement: Расчёт дорожных одежд у вас есть и от какой цены?",
+   "reference": "IndorPavement: Расчёт дорожных одежд (ИндорСофт): 2 вариантов с ценой, минимальная цена 37000.00 ₽",
+   "answer": "Доступны два варианта:\n\n**Аренда IndorPavement** — аренда на 3 месяца, подойдёт для краткосрочных проектов  \nЦена: 37 000 ₽\n\n**Лицензия IndorCAD/BIM + IndorPavement** — полная версия на 12 месяцев, включает обновление  \nЦена: 199 000 ₽\n\nКакой вариант вам интересен?",
+   "contexts": [
+    "IndorPavement: Расчёт дорожных одежд | ИндорСофт | Программы САПР и ГИС / Инфраструктура: изыскания, генплан, транспорт | от 37000.0 до 199000.0 ₽ | ",
+    "Лицензия на использование IndorCAD/BIM + IndorPavement: BIM (ТИМ) автомобильных дорог и расчёт дорожных одежд. — 199000.0 ₽",
+    "цена за 1 аренду — 37000.0 ₽",
+    "Лицензия на использование IndorCAD/BIM + IndorPavement: BIM (ТИМ) автомобильных дорог и расчёт дорожных одежд. — 199000.0 ₽",
+    "Топоматик Robur – Дорожная одежда | НПФ «Топоматик» | Программы САПР и ГИС / Инфраструктура: изыскания, генплан, транспорт | от 25000.0 до 69900.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.8,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    37000.0,
+    199000.0
+   ],
+   "unsupported": [
+    "Электронные курсы от Корпоративных систем Плюс имеют фиксированную цену независимо от версии."
+   ]
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик Интерактивные карты. География материков и океанов. 7 класс и есть ли он у вас?",
+   "reference": "Интерактивные карты. География материков и океанов. 7 класс — вендор ООО «Экзамен-Медиа», есть в каталоге, цена от 9600.00 ₽",
+   "answer": "Разработчик интерактивных карт по географии для 7 класса — ООО «Экзамен-Медиа». Да, этот продукт есть в нашем ассортименте. Стоимость составляет от 9600 рублей. Нужна помощь с оформлением заказа?",
+   "contexts": [
+    "Интерактивные карты. География материков и океанов. 7 класс | ООО «Экзамен-Медиа» | Программы для образования и науки / Обучающие программы | от 9600.0 до 9600.0 ₽ | ",
+    "ООО «Экзамен-Медиа» География материков и океанов, 7 класс, Мировой океан (лицензия), — 9600.0 ₽",
+    "ООО «Экзамен-Медиа» География материков и океанов, 7 класс, Южные материки (лицензия), — 9600.0 ₽",
+    "ООО «Экзамен-Медиа» География материков и океанов, 7 класс, Северные материки (лицензия), — 9600.0 ₽",
+    "Наглядная география. География материков и океанов. 7 класс | ООО «Экзамен-Медиа» | Программы для образования и науки / Обучающие программы | от 9600.0 до 9600.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    9600.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик SPAMfighter Exchange Модуль и есть ли он у вас?",
+   "reference": "SPAMfighter Exchange Модуль — вендор SPAMfighter, есть в каталоге, цена от 639.00 ₽",
+   "answer": "Разработчик модуля SPAMfighter Exchange — компания SPAMfighter. Да, этот модуль представлен в нашем каталоге. Есть варианты лицензий на разные сроки:\n\n- **SPAMfighter Exchange (лицензия на 1 год)** — от 639 ₽  \n- **SPAMfighter Exchange (лицензия на 2 года)** — от 1087 ₽  \n- **SPAMfighter Exchange (лицензия на 3 года)** — от 1438 ₽\n\nЕсли нужна помощь с выбором срока или оформлением заказа, обращайтесь!",
+   "contexts": [
+    "SPAMfighter Exchange Модуль | SPAMfighter | Антивирусы и безопасность / Интернет и Сеть | от 639.0 до 8129.0 ₽ | ",
+    "SPAMfighter Exchange (лицензия на 3 года), — 1438.0 ₽",
+    "SPAMfighter Exchange (лицензия на 2 года), — 1087.0 ₽",
+    "SPAMfighter Exchange (лицензия на 1 год), — 639.0 ₽",
+    "Microsoft Exchange Online | Программы и лицензии Microsoft Corporation | Офисные программы / Офисные пакеты программ Microsoft Office | от 479.0 до 4790.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    639.0,
+    1087.0,
+    1438.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик Библиотека контролов EMX Controls и есть ли он у вас?",
+   "reference": "Библиотека контролов EMX Controls — вендор ЭРЕМЕКС, есть в каталоге, цена от 80000.00 ₽",
+   "answer": "Разработчик библиотеки контролов EMX Controls — компания ЭРЕМЕКС. Да, этот продукт представлен в нашем каталоге. Есть варианты с бессрочной лицензией и годовой лицензией, также доступна подписка на обновления. Стоимость начинается от 80 000 рублей. Нужна помощь с выбором подходящей лицензии?",
+   "contexts": [
+    "Библиотека контролов EMX Controls | ЭРЕМЕКС | Программы для программирования / Программы для разработки ПО | от 80000.0 до 450000.0 ₽ | ",
+    "ЭРЕМЕКС Библиотека контролов EMX Controls (бессрочная лицензия), цена за 1 лицензию — 450000.0 ₽",
+    "ЭРЕМЕКС Библиотека контролов EMX Controls (годовая лицензия), цена за 1 лицензию — 100000.0 ₽",
+    "ЭРЕМЕКС Библиотека контролов EMX Controls (продление подписки на обновления на 1 год), цена за 1 продление — 80000.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    80000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик CryptExpert и есть ли он у вас?",
+   "reference": "CryptExpert — вендор «Криптэкс», есть в каталоге, цена от 1500.00 ₽",
+   "answer": "Разработчик программы CryptExpert — компания «Криптэкс». Да, мы предлагаем этот продукт. Есть разные варианты лицензий: от 1500 ₽ до 30000 ₽. Какой именно вам нужен? Например, рабочая станция или серверная лицензия?",
+   "contexts": [
+    "CryptExpert | «Криптэкс» | Антивирусы и безопасность / Программы для защиты информации | от 1500.0 до 30000.0 ₽ | ",
+    "«Криптэкс» CryptExpert (бессрочная лицензия на право использования на 1 рабочее место для работы под управлением — 20000.0 ₽",
+    "«Криптэкс» CryptExpert (бессрочная серверная лицензия для работы под управлением серверных ОС Windows 2008-2022), — 20000.0 ₽",
+    "«Криптэкс» CryptExpert (бессрочная серверная лицензия для работы под управлением серверных ОС Windows 2008-2022), — 30000.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1500.0,
+    30000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик SharePoint Gantt WebPart и есть ли он у вас?",
+   "reference": "SharePoint Gantt WebPart — вендор RadiantQ, есть в каталоге, цена от 92489.00 ₽",
+   "answer": "Разработчик SharePoint Gantt WebPart — компания RadiantQ. Да, этот продукт представлен в нашем каталоге:\n\n- **RadiantQ SharePoint Gantt WebPart (лицензия Single Site Collection for SP 2013 and lower)** — от 92 489 ₽  \n- **RadiantQ SharePoint Gantt WebPart (лицензия Gantt App for O365, SP 2016 and greater)** — от 231 396 ₽\n\nЕсли нужна помощь с выбором подходящей лицензии или оформлением заказа, обращайтесь!",
+   "contexts": [
+    "SharePoint Gantt WebPart | RadiantQ | Управление бизнесом, CRM/ERP / Программное обеспечение для ведения дел | от 92489.0 до 347152.0 ₽ | ",
+    "RadiantQ SharePoint Gantt WebPart (лицензия Single Site Collection for SP 2013 and lower), — 92489.0 ₽",
+    "RadiantQ SharePoint Gantt WebPart (лицензия Gantt App for O365, SP 2016 and greater), — 231396.0 ₽",
+    "RadiantQ SharePoint Gantt WebPart (лицензия Farm for SP 2013 and lower), — 347152.0 ₽",
+    "jQuery Gantt Package | RadiantQ | Управление бизнесом, CRM/ERP / Программное обеспечение для управления бизнесом | от 104065.0 до 208245.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.7,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    92489.0,
+    231396.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик Навител Навигатор. Узбекистан и есть ли он у вас?",
+   "reference": "Навител Навигатор. Узбекистан — вендор NAVITEL, есть в каталоге, цена от 1200.00 ₽",
+   "answer": "Разработчик программы \"Навител Навигатор\" — компания NAVITEL. На нашем сайте представлены различные варианты этой программы, включая обновления карт и региональные версии. Однако карты конкретно для Узбекистана в текущем ассортименте отсутствуют. \n\nЕсли вам нужна помощь в выборе другой навигационной программы или дополнительной информации, пожалуйста, уточните ваш запрос.",
+   "contexts": [
+    "Навител Навигатор. Обновления навигационных карт | NAVITEL | Карты, навигация, путешествия / Карты и сервисы | от 500.0 до 500.0 ₽ | ",
+    "NAVITEL Навител Навигатор (обновления навигационных карт, до 2022 г.), — 500.0 ₽",
+    "Навител Навигатор. Россия | NAVITEL | Карты, навигация, путешествия / Карты и сервисы | от 1050.0 до 1050.0 ₽ | ",
+    "NAVITEL Навител Навигатор, Россия (электронная лицензия), Версия PHONE RETAIL — 1050.0 ₽",
+    "NAVITEL Навител Навигатор, Россия (электронная лицензия), цена за 1 лицензию — 1050.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 0.0,
+   "context_precision": 0.0,
+   "faithfulness": 0.667,
+   "answer_relevancy": 0.75,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": [
+    "Карты для Узбекистана не представлены в текущем ассортименте."
+   ]
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик Комплекты документации Рутокен и есть ли он у вас?",
+   "reference": "Комплекты документации Рутокен — вендор Актив, есть в каталоге, цена от 450.00 ₽",
+   "answer": "Разработчик комплекта документации Рутокен — компания Актив. Да, этот продукт представлен в нашем каталоге. Нужна помощь с выбором или оформлением заказа?",
+   "contexts": [
+    "Комплекты документации Рутокен | Актив | Антивирусы и безопасность / Программы для защиты информации | от 450.0 до 450.0 ₽ | ",
+    "Актив Комплект документации ФСБ Рутокен ЭЦП 3.0, цена за 1 комплект — 450.0 ₽",
+    "Актив Комплект документации ФСБ Рутокен ЭЦП 3.0,  Комплект документации Рутокен ЭЦП 3.0 3100, серт, ФСБ при инд (уп.), — 450.0 ₽",
+    "Актив Комплект документации Рутокен ЭЦП 3.0 3220, цена за 1 дистрибутив — 450.0 ₽",
+    "Рутокен ЭЦП 3.0 Flash | Актив | Антивирусы и безопасность / Программы для защиты информации | от 6690.0 до 9150.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "vendor",
+   "question": "Кто разработчик RedHelper и есть ли он у вас?",
+   "reference": "RedHelper — вендор RedHelper, есть в каталоге, цена от 1952.00 ₽",
+   "answer": "Разработчик RedHelper — компания RedHelper. Да, этот продукт представлен в нашем каталоге. Хотите узнать подробнее о возможностях или приобрести лицензию?",
+   "contexts": [
+    "RedHelper | RedHelper | Облачные решения (SaaS) / Коммуникации (SaaS) | от 1952.0 до 19398.0 ₽ | ",
+    "RedHelper (лицензия «Бизнес»), Лицензия на 1 месяц. Цена за 1-го оператора — 1952.0 ₽",
+    "RedHelper (лицензия «Бизнес»), Лицензия на 1 месяц. Цена за 1-го оператора — 1952.0 ₽",
+    "RedHelper (лицензия «Бизнес»), Лицензия на 3 месяца. Цена за 1-го оператора — 5270.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.667,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": [
+    "RedHelper разработан компанией RedHelper"
+   ]
+  },
+  {
+   "type": "no_price",
+   "question": "Сколько стоит NetavisSoftware Video?",
+   "reference": "NetavisSoftware Video (NetavisSoftware) есть в каталоге, но цены в фиде нет — цену сообщает менеджер",
+   "answer": "Цена на NetavisSoftware Video предоставляется индивидуально. Ваш запрос передан менеджеру, он скоро свяжется с вами в этом чате.",
+   "contexts": [
+    "NetavisSoftware Video | NetavisSoftware | Сеть и интернет / ПО для видеонаблюдения | цена по запросу | ",
+    "NetavisSoftware Video (лицензии), Wall Control – 3 Clients (per Package) — цена по запросу ₽",
+    "MAGIX Video Deluxe | Magix | Мультимедиа / Видеоредакторы | от 2375.0 до 3375.0 ₽ | ",
+    "MAGIX Video Deluxe (лицензия ESD), цена за 1 лицензию — 2375.0 ₽",
+    "MAGIX Video Deluxe Plus (лицензия ESD), цена за 1 лицензию — 3375.0 ₽"
+   ],
+   "escalated": true,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.5,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "no_price",
+   "question": "Сколько стоит GamificationLab?",
+   "reference": "GamificationLab (Gamification Lab) есть в каталоге, но цены в фиде нет — цену сообщает менеджер",
+   "answer": "Цена на GamificationLab предоставляется по запросу. Ваш вопрос передан менеджеру, он скоро ответит в этом чате.",
+   "contexts": [
+    "GamificationLab | Gamification Lab | Управление бизнесом, CRM/ERP / Программное обеспечение для управления бизнесом | цена по запросу | ",
+    "GamificationLab (модуль), Виджеты — цена по запросу ₽"
+   ],
+   "escalated": true,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.5,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "no_price",
+   "question": "Сколько стоит Arcserve UDP Cloud Archiving?",
+   "reference": "Arcserve UDP Cloud Archiving (Arcserve) есть в каталоге, но цены в фиде нет — цену сообщает менеджер",
+   "answer": "Цена на Arcserve UDP Cloud Archiving предоставляется индивидуально менеджером. Менеджер свяжется с вами в этом чате для уточнения деталей.",
+   "contexts": [
+    "Arcserve UDP Cloud Archiving | Arcserve | Сеть и интернет / Почтовые утилиты | цена по запросу | ",
+    "Arcserve UDP Cloud Archiving (подписка на лицензию Managed eMail Archiving Service на неограниченное количество — цена по запросу ₽",
+    "Microsoft Exchange Online | Программы и лицензии Microsoft Corporation | Офисные программы / Офисные пакеты программ Microsoft Office | от 479.0 до 4790.0 ₽ | ",
+    "Microsoft Exchange Online (подписка NCE на 1 год), Archiving for Exchange Server — 4790.0 ₽",
+    "Microsoft Exchange Online (подписка NCE на 1 месяц), Archiving for Exchange Server — 479.0 ₽"
+   ],
+   "escalated": true,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.5,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "no_price",
+   "question": "Сколько стоит Telerik UI for WPF?",
+   "reference": "Telerik UI for WPF (Telerik) есть в каталоге, но цены в фиде нет — цену сообщает менеджер",
+   "answer": "Цена на Telerik UI for WPF предоставляется индивидуально. Ваш персональный менеджер свяжется с вами в этом чате для уточнения деталей.",
+   "contexts": [
+    "Telerik UI for WPF | Telerik | Программы для программирования / Программы для разработки ПО | цена по запросу | ",
+    "Telerik UI for WPF (техподдержка на 1 год), Ultimate Support — цена по запросу ₽",
+    "WPF Gantt Package | RadiantQ | Управление бизнесом, CRM/ERP / Программное обеспечение для управления бизнесом | от 104065.0 до 208245.0 ₽ | ",
+    "RadiantQ WPF Gantt Package (лицензия), — 104065.0 ₽",
+    "RadiantQ WPF Gantt Package (лицензия with Source), — 208245.0 ₽"
+   ],
+   "escalated": true,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.5,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [],
+   "unsupported": []
+  },
+  {
+   "type": "need",
+   "question": "Нужен российский антивирус для 20 компьютеров в офисе, что посоветуете?",
+   "reference": "Подходящие продукты: касперск, kaspersky, доктор веб, dr.web",
+   "answer": "Предлагаю два российских антивируса:\n\n**Kaspersky Endpoint Security для бизнеса Расширенный**  \nЗащищает рабочие станции от вирусов и угроз. Подходит для коммерческих компаний. Цена от 827.1 ₽ за устройство в год.  \nСсылка: https://store.softline.ru/kaspersky/kl4867lakdr-4861/\n\n**Dr.Web Desktop Security Suite**  \nКомплексная защита рабочих станций. Подходит для небольших офисов. Цена от 6566.5 ₽ за пакетную поставку.  \nСсылка: https://store.softline.ru/drweb/lbw-bk-12m-10-a3-5317/\n\nКакой вариант вам ближе? Или уточнить детали?",
+   "contexts": [
+    "Kaspersky Endpoint Security для бизнеса Расширенный | «Лаборатория Касперского» | Антивирусы и безопасность / Антивирусы для организаций | от 827.1 до 7703.1 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Kaspersky Endpoint Security для бизнеса Расширенный продление лицензии на 2 года по количеству узлов — 5778.0 ₽",
+    "Kaspersky Endpoint Security для бизнеса Расширенный продление лицензии на 2 года по количеству узлов — 5586.75 ₽",
+    "Kaspersky Endpoint Security для бизнеса Расширенный продление лицензии на 2 года по количеству узлов — 5232.06 ₽",
+    "Dr.Web Desktop Security Suite | Доктор Веб | Антивирусы и безопасность / Антивирусы для организаций | от 6566.5 до 733608.82 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.667,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    827.1,
+    6566.5
+   ],
+   "unsupported": [
+    "Kaspersky Endpoint Security для бизнеса Расширенный подходит для коммерческих компаний.",
+    "Dr.Web Desktop Security Suite предназначен для небольших офисов."
+   ]
+  },
+  {
+   "type": "need",
+   "question": "Ищем отечественную операционную систему для рабочих мест вместо Windows",
+   "reference": "Подходящие продукты: astra, астра, ред ос, альт",
+   "answer": "Предлагаю рассмотреть следующие российские операционные системы:\n\n**Astra Linux Special Edition**  \nОтечественный дистрибутив Linux, сертифицированный ФСБ и ФСТЭК РФ (№ 369 в реестре). Подходит для государственных учреждений и критически важных инфраструктур. Цена от 294 ₽.\n\n**ОПЕРАЦИОННАЯ СИСТЕМА РЕД ОС**  \nРоссийская альтернатива Windows, поддерживает широкий спектр приложений и оборудования. Цена от 305 ₽.\n\n**Альт Рабочая станция 11**  \nУниверсальная российская ОС на основе Linux, доступна в разных архитектурных версиях. Цена от 275 ₽.\n\nКакая-то из этих систем вам ближе? Или нужна помощь с выбором архитектуры или типа лицензии?",
+   "contexts": [
+    "Astra Linux Special Edition | Группа Астра | Операционные системы / Российские операционные системы (Импортозамещение) | от 294.0 до 4181600.0 ₽ | запись в реестре отечественного ПО № 369",
+    "Сертификат техподдержки на ОС «Astra Linux Special Edition» для 64-х разрядной платформы на базе п/а x86-64, вариант — 12600.0 ₽",
+    "Операционная система РЕД ОС | РЕД СОФТ | Операционные системы / Российские операционные системы (Импортозамещение) | от 305.0 до 1311500.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "РЕД СОФТ РЕД ОС, Сертификат на техническую поддержку операционной системы, Конфигурация: Рабочая станция (стандартная — 11041.0 ₽",
+    "РЕД СОФТ РЕД ОС, Сертификат на техническую поддержку операционной системы, Конфигурация: Рабочая станция (стандартная — 22204.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.8,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 1.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    294.0,
+    305.0,
+    275.0
+   ],
+   "unsupported": [
+    "Операционная система РЕД ОС является российской альтернативой Windows"
+   ]
+  },
+  {
+   "type": "need",
+   "question": "Нужна программа для резервного копирования серверов, желательно из реестра",
+   "reference": "Подходящие продукты: кибер бэкап, киберпротект, rubackup, backup",
+   "answer": "Предлагаю рассмотреть два российских решения:\n\n**Кибер Бэкап Стандартная редакция**\n— Подходит для малого и среднего бизнеса, простая установка и управление. Цена от 284 ₽.\n\n**RuBackup OneClick**\n— Полноценное решение для крупных компаний, поддерживает виртуальные среды и облачные сервисы. Цена от 761 000 ₽.\n\nКакой функционал вам важен? Сколько серверов планируете защищать?",
+   "contexts": [
+    "Кибер Бэкап Стандартная редакция | Киберпротект | Программное обеспечение для работы с файлами и дисками / Программное обеспечение для резервного копирования | от 284.0 до 103236.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Киберпротект Кибер Бэкап Стандартная редакция, Сертификат на сопровождение ПО Кибер Бэкап Стандартная редакция для — 63357.0 ₽",
+    "Киберпротект Кибер Бэкап Стандартная редакция, Сертификат на сопровождение ПО Кибер Бэкап Стандартная редакция для — 50530.0 ₽",
+    "Киберпротект Кибер Бэкап Стандартная редакция, Сертификат на сопровождение ПО Кибер Бэкап Стандартная редакция для — 35670.0 ₽",
+    "RuBackup OneClick | Группа Астра | Программное обеспечение для работы с файлами и дисками / Программное обеспечение для резервного копирования | от 761000.0 до 1322000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.333,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.5,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    284.0,
+    761000.0
+   ],
+   "unsupported": [
+    "Кибер Бэкап Стандартная редакция подходит для малого и среднего бизнеса",
+    "Простая установка и управление Кибер Бэкап Стандартной редакции",
+    "RuBackup OneClick - полноценное решение для крупных компаний"
+   ]
+  },
+  {
+   "type": "need",
+   "question": "Что есть для 3D-проектирования для инженеров-конструкторов?",
+   "reference": "Подходящие продукты: компас, nanocad, autocad, аскон",
+   "answer": "Предлагаю два решения:\n\n**АСКОН Комплект КОМПАС-3D v25: Механика**\n— Подходит для механического проектирования и расчётов конструкций. Цена от 193 000 ₽.\n\n**Кредо-Диалог ТИМ КРЕДО ПРОЕКТИРОВАНИЕ**\n— Комплексное решение для проектирования инженерных сооружений. Цена от 35 000 ₽.\n\nОба продукта поддерживают инженерно-конструкторскую работу и подходят для создания 3D-моделей. Какой функционал вам важнее всего?",
+   "contexts": [
+    "Комплекты КОМПАС-3D: Механика и КОМПАС-3D: Механика-Плюс | АСКОН | Программы САПР и ГИС / Программы для машиностроения | от 63800.0 до 568000.0 ₽ | ",
+    "АСКОН Комплект КОМПАС-3D v25: Механика (лицензия), Механика — 428000.0 ₽",
+    "АСКОН Комплект КОМПАС-3D v25: Механика-Плюс (лицензия), Механика-Плюс — 568000.0 ₽",
+    "АСКОН Комплект КОМПАС-3D v25: Механика (лицензия), Механика (лицензия на 1 год) — 193000.0 ₽",
+    "ModPlus nanoCAD | Modplus | Программы САПР и ГИС / Базовые программы | от 300.0 до 4020.0 ₽ | "
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.75,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    193000.0,
+    35000.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "need",
+   "question": "Нужна защита почтового сервера от спама и вирусов",
+   "reference": "Подходящие продукты: почтов, mail, anti-spam",
+   "answer": "Предлагаю рассмотреть два решения:\n\n**UserGate Mail Security**  \nЗащищает почтовый сервер от спама и вирусов, подходит для организаций любого размера. Цена от 39 100 ₽ за 1 год. Подходит, если нужна эффективная фильтрация почты.\n\n**Positive Technologies Email Gateway**  \nКомплексная защита электронной почты, включая антиспам и антивирусную фильтрацию. Цена от 60 000 ₽ за 1 год. Оптимален для крупных компаний с повышенными требованиями безопасности.\n\nКакой из этих вариантов вам ближе? Или укажите другие требования, чтобы я мог подобрать более точное решение.",
+   "contexts": [
+    "UserGate Mail Security | UserGate | Антивирусы и безопасность / Интернет и Сеть | от 39100.0 до 39100.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "UserGate Подписка Mail Security для защиты от спама, 1 год, цена за 1 подписку — 39100.0 ₽",
+    "Почтовый сервер Tegu | Лаборатория МБК | Сеть и интернет / Почтовые утилиты | от 23598.0 до 4140000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Лаборатория МБК Tegu Enterprise, Пользовательская лицензия на почтовый сервер (стандартное продление технической — 227286.0 ₽",
+    "Лаборатория МБК Tegu Enterprise, Пользовательская лицензия на почтовый сервер (стандартное продление технической — 454572.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.806,
+   "faithfulness": 0.667,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    39100.0,
+    60000.0
+   ],
+   "unsupported": [
+    "UserGate Mail Security подходит для организаций любого размера.",
+    "Positive Technologies Email Gateway оптимален для крупных компаний с повышенными требованиями к безопасности."
+   ]
+  },
+  {
+   "type": "need",
+   "question": "Нам нужен офисный пакет, российский, на 10 сотрудников",
+   "reference": "Подходящие продукты: мойофис, р7, офис, office",
+   "answer": "Предлагаю рассмотреть МойОфис Стандартный 3:\n\n**МойОфис Стандартный 3**  \n— Полноценный офисный пакет от российского разработчика. Подходит для коммерческих компаний. Цена за лицензию на 1 пользователя на 1 год — 5020 ₽.  \nСсылка: https://store.softline.ru/ncloudtech/x4-std-ne-unl-a-463500/\n\nЭто решение полностью соответствует вашему запросу. Подтверждаете покупку?",
+   "contexts": [
+    "МойОфис Стандартный 3 | МойОфис | Офисные программы / Российское офисное ПО (Импортозамещение) | от 295.0 до 5020.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "МойОфис Стандартный 3 (лицензия на обновление для образовательных организаций), на 1 год — 295.0 ₽",
+    "МойОфис Стандартный 3 (лицензия на обновление  на 1 год для коммерческих заказчиков), для корпоративной лицензии на 1 — 5020.0 ₽",
+    "МойОфис Стандартный 3 (лицензия на обновление на 1 год для государственных заказчиков), для корпоративной лицензии на 1 — 4012.0 ₽",
+    "1С-Битрикс24 | 1С-Битрикс | Сеть и интернет / Программное обеспечение для создания сайтов | от 990.0 до 5999000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 1.0,
+   "answer_relevancy": 1.0,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    5020.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "need",
+   "question": "Нужно средство защиты информации от несанкционированного доступа для ГИС",
+   "reference": "Подходящие продукты: secret net, код безопасности, dallas, страж",
+   "answer": "Предлагаю рассмотреть следующие российские средства защиты:\n\n**Код безопасности: Secret Net Studio 8**\n— Подходит для защиты от несанкционированного доступа, сертифицирован для государственных информационных систем. Цена от 321 ₽.\n\n**Эшелон «СКАНЕР-ВС»**\n— Средство тестирования информационной безопасности, помогает выявить уязвимости. Цена от 576 ₽.\n\n**vGate от Код Безопасности**\n— Комплексная защита от атак и утечек данных, поддерживает государственные стандарты. Цена от 1200 ₽.\n\nКакой функционал вам необходим? Сколько пользователей планируется защитить?",
+   "contexts": [
+    "Средства мониторинга УЦ | КриптоПро | Антивирусы и безопасность / Программы для защиты информации | от 76250.0 до 167750.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "КриптоПро Средства мониторинга УЦ (Номер ЕРРП: 5495), Сертификат на годовую техническую поддержку ПО КриптоПро Центр — 167750.0 ₽",
+    "КриптоПро Средства мониторинга УЦ (Номер ЕРРП: 5495), Сертификат на годовую техническую поддержку ПО Агент КриптоПро — 76250.0 ₽",
+    "КриптоПро Средства мониторинга УЦ (Номер ЕРРП: 5495), Сертификат на годовую техническую поддержку ПО Агент КриптоПро — 76250.0 ₽",
+    "Код безопасности: vGate | Код безопасности | Антивирусы и безопасность / Программы для защиты информации | от 1200.0 до 550000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан"
+   ],
+   "escalated": false,
+   "turns": 1,
+   "context_recall": 1.0,
+   "context_precision": 0.5,
+   "faithfulness": 1.0,
+   "answer_relevancy": 0.75,
+   "answer_correctness": 0.75,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    321.0,
+    576.0,
+    1200.0
+   ],
+   "unsupported": []
+  },
+  {
+   "type": "need",
+   "question": "Посоветуйте систему мониторинга сети и серверов",
+   "reference": "Подходящие продукты: opmanager, мониторинг, monitoring, zabbix",
+   "answer": "Предлагаю рассмотреть два российских решения:\n\n**Астра Мониторинг**\n- Подходит для небольших сетей, поддерживает мониторинг Windows и Linux.\n- Цена от 1200 ₽ за узел.\n- Простая установка и настройка.\n\n**КриптоПро Средства мониторинга УЦ**\n- Более мощное решение для крупных инфраструктур.\n- Поддерживает шифрование и сертификацию.\n- Годовая поддержка стоит от 76250 ₽.\n\nОба решения соответствуют вашим требованиям по поддержке платформ и подходят для коммерческой компании. Какой вариант вам ближе? Или нужна дополнительная информация?",
+   "contexts": [
+    "Astra Monitoring | Группа Астра | Управление бизнесом, CRM/ERP / Системы автоматизации | от 1200.0 до 233000.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "Астра Мониторинг РДЦП.10601-01, на 1 единицу прочего оборудования, электронный, на срок действия исключительного права, — 4680.0 ₽",
+    "Средства мониторинга УЦ | КриптоПро | Антивирусы и безопасность / Программы для защиты информации | от 76250.0 до 167750.0 ₽ | российский вендор; номер записи в реестре в каталоге не указан",
+    "КриптоПро Средства мониторинга УЦ (Номер ЕРРП: 5495), Сертификат на годовую техническую поддержку ПО КриптоПро Центр — 167750.0 ₽",
+    "КриптоПро Средства мониторинга УЦ (Номер ЕРРП: 5495), Сертификат на годовую техническую поддержку ПО Агент КриптоПро — 76250.0 ₽"
+   ],
+   "escalated": false,
+   "turns": 2,
+   "context_recall": 1.0,
+   "context_precision": 1.0,
+   "faithfulness": 0.286,
+   "answer_relevancy": 0.75,
+   "answer_correctness": 0.0,
+   "price_faithfulness": 1.0,
+   "prices_in_answer": [
+    1200.0,
+    76250.0
+   ],
+   "unsupported": [
+    "Астра Мониторинг подходит для небольших сетей",
+    "Астра Мониторинг поддерживает мониторинг Windows и Linux",
+    "Простая установка и настройка Астра Мониторинга"
+   ]
+  }
+ ]
+}
