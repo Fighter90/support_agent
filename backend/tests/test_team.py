@@ -96,6 +96,31 @@ def test_api_roles_and_invite():
         assert cl.patch(f'/api/admin/users/{s.manager_login}', headers=h, json={'active': False}).status_code == 400
 
 
+def test_admin_creates_user_with_password_and_resets_it():
+    """Форма «Новый сотрудник»: кириллица в логине, пустой лимит — не 422; администратор получает логин и пароль."""
+    from app.main import app
+
+    s = get_settings()
+    with TestClient(app) as cl:
+        h = {'Authorization': 'Bearer ' + cl.post('/api/auth/login', json={'login': s.manager_login, 'password': s.manager_password}).json()['token']}
+        r = cl.post('/api/admin/users', headers=h, json={'login': 'Мария Петрова', 'name': 'Мария Петрова', 'role': 'manager', 'max_load': '', 'routing': True})
+        assert r.status_code == 200, r.text
+        u = r.json()
+        assert u['login'] == 'mariya.petrova' and u['max_load'] == 5 and len(u['password']) == 14
+        assert cl.post('/api/auth/login', json={'login': u['login'], 'password': u['password']}).json()['role'] == 'manager'
+        r2 = cl.post('/api/admin/users', headers=h, json={'name': 'Мария Петрова', 'max_load': 99}).json()  # тёзка — свой логин
+        assert r2['login'] == 'mariya.petrova2' and r2['max_load'] == 30
+        pw = cl.post(f"/api/admin/users/{u['login']}/password", headers=h).json()['password']
+        assert pw != u['password']
+        assert cl.post('/api/auth/login', json={'login': u['login'], 'password': u['password']}).status_code == 401
+        assert cl.post('/api/auth/login', json={'login': u['login'], 'password': pw}).status_code == 200
+        assert cl.post(f'/api/admin/users/{s.manager_login}/password', headers=h).status_code == 400  # учётка из .env
+        bad = cl.post('/api/admin/users', headers=h, json={'name': 'А'})
+        assert bad.status_code == 400 and 'имя' in bad.json()['detail']
+        v = cl.post('/api/admin/users', headers=h, json={'max_load': 3})
+        assert v.status_code == 422 and v.json()['detail'].startswith('Проверьте поля')
+
+
 def test_chat_history_and_forget():
     from app import pii
     from app.main import app, purge_pii

@@ -268,7 +268,8 @@ def _call(conv_id: str, messages: list[dict[str, Any]], ctx: dict[str, Any], too
             ctx['degraded'] = True
             continue
         price = {'gigachat': s.gigachat_price_per_1k, 'yandex': s.yandex_price_per_1k, 'openweights': s.openweights_price_per_1k}.get(p.name, 0.0)
-        cost = round((r.tokens_in + r.tokens_out) / 1000 * price, 4)
+        price_out = (s.openweights_price_out_per_1k if p.name == 'openweights' else 0.0) or price  # у Qwen3.6 выход дороже входа
+        cost = round((r.tokens_in * price + r.tokens_out * price_out) / 1000, 4)
         ctx['cost_rub'] += cost
         ctx['tokens'] += r.tokens_in + r.tokens_out
         ctx['provider'] = p.name

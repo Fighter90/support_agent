@@ -54,17 +54,17 @@ await step('Администратор: раздел «Команда», соз�
       const row = adm.locator('tr', { hasText: login })
       await row.getByRole('button', { name: 'Новая ссылка' }).click()
     } else {
-      await adm.getByPlaceholder(/Логин \(латиница\)/).fill(login)
+      await adm.getByPlaceholder(/Логин, например/).fill(login)
       await adm.getByPlaceholder(/Имя — его увидит клиент/).fill(name)
-      await adm.getByRole('button', { name: /Создать и получить ссылку/ }).click()
+      await adm.getByRole('button', { name: /Создать: логин, пароль/ }).click()
     }
     const prev = Object.values(links)
     for (let i = 0; i < 40; i++) {  // ждём именно новую ссылку (у предыдущего сотрудника она другая)
-      const t = await adm.locator('.invite code').innerText().catch(() => '')
+      const t = await adm.locator('.invite code', { hasText: '/manager?invite=' }).innerText().catch(() => '')
       if (t && !prev.includes(t.trim())) break
       await adm.waitForTimeout(250)
     }
-    links[login] = (await adm.locator('.invite code').innerText()).trim()
+    links[login] = (await adm.locator('.invite code', { hasText: '/manager?invite=' }).innerText()).trim()
     must(!prev.includes(links[login]), 'ссылка не обновилась')
     must(links[login].includes('/manager?invite='), 'нет ссылки-приглашения')
     await adm.waitForTimeout(700)
@@ -73,6 +73,35 @@ await step('Администратор: раздел «Команда», соз�
   for (const [login] of TEAM) await api(adm, `/api/admin/users/${login}`, { max_load: 10, routing: true, active: true }, 'PATCH')
   await helpShot(adm, 'team')
   return 'созданы: ' + TEAM.map(t => t[1]).join(', ')
+})
+
+await step('Форма «Новый сотрудник»: логин кириллицей и пустой лимит — без ошибки; логин и пароль копируются, «Новый пароль» работает', adm, async () => {
+  await adm.getByPlaceholder(/Логин, например/).fill('Проверка Регресс')
+  await adm.getByPlaceholder(/Имя — его увидит клиент/).fill('Проверка Регресс')
+  await adm.locator('form.row-form input[type=number]').fill('')
+  await adm.getByRole('button', { name: /Создать: логин, пароль/ }).click()
+  const box = adm.locator('.creds')
+  await box.waitFor({ timeout: 10000 })
+  must(!(await adm.locator('form.row-form .err').count()), 'ошибка формы: ' + await adm.locator('form.row-form .err').innerText().catch(() => ''))
+  const rows = await box.locator('.cred-row code').allInnerTexts()
+  const login = rows[1], pw = rows[2]
+  must(/^proverka\.regress\d*$/.test(login), 'логин не из имени: ' + login)
+  must(/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test(pw), 'нет пароля: ' + pw)
+  must(await box.getByRole('button', { name: /Копировать/ }).count() >= 3, 'нет кнопок «Копировать»')
+  must(await box.getByRole('button', { name: /Скопировать всё/ }).count() === 1, 'нет «Скопировать всё»')
+  const ok1 = await adm.evaluate(async ([l, p]) => (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: l, password: p }) })).status, [login, pw])
+  must(ok1 === 200, 'вход с выданным паролем: ' + ok1)
+  await adm.locator('tr', { hasText: login }).getByRole('button', { name: 'Новый пароль' }).click()
+  for (let i = 0; i < 40 && (await box.locator('.cred-row code').nth(2).innerText().catch(() => pw)) === pw; i++) await adm.waitForTimeout(250)
+  const pw2 = await box.locator('.cred-row code').nth(2).innerText()
+  must(pw2 !== pw, 'пароль не сменился')
+  const st = await adm.evaluate(async ([l, a, b]) => [
+    (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: l, password: a }) })).status,
+    (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: l, password: b }) })).status], [login, pw, pw2])
+  must(st[0] === 401 && st[1] === 200, 'старый/новый пароль: ' + st)
+  await helpShot(adm, 'team_creds')
+  await api(adm, `/api/admin/users/${login}`, { active: false }, 'PATCH')  // проверочную учётку отключаем
+  return `логин ${login}, пароль выдан и сменён, вход проверен`
 })
 
 const mgr = {}

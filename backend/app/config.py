@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     gigachat_verify_ssl: bool = True     # в Docker-образ ставится сертификат НУЦ Минцифры
     yandex_api_key: str = ''
     yandex_folder_id: str = 'b1gh8uv9d9ur7e4kmvvi'
-    yandex_model: str = 'yandexgpt/latest'
+    yandex_model: str = 'yandexgpt-5.1'   # YandexGPT Pro 5.1; yandexgpt/latest у Яндекса — Pro 5 (1,20 ₽)
     yandex_api_url: str = 'https://llm.api.cloud.yandex.net/v1'
     llm_timeout_s: float = 60.0
     llm_allow_mock: bool = True  # аварийный режим без модели; в оценке качества выключается
-    # Тарифы, ₽ за 1000 токенов с НДС (синхронный режим), действуют с 01.02.2026:
+    # Тарифы, ₽ за 1000 токенов с НДС (синхронный режим), проверено 28.11.2026:
     # GigaChat 2 Max — developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs; YandexGPT Pro 5.1 — aistudio.yandex.ru/docs/ru/ai-studio/pricing
     gigachat_price_per_1k: float = 0.65
     yandex_price_per_1k: float = 0.8
@@ -47,7 +47,8 @@ class Settings(BaseSettings):
     openweights_auth: str = 'Bearer'          # Bearer | Api-Key (Yandex AI Studio)
     openweights_model: str = 'qwen3:8b'       # имя модели на сервере
     openweights_project: str = ''             # заголовок OpenAI-Project (каталог Yandex Cloud), если нужен
-    openweights_price_per_1k: float = 0.0     # свой сервер — 0 (платите за GPU), у провайдера — по его прайсу
+    openweights_price_per_1k: float = 0.0     # вход; свой сервер — 0 (платите за GPU), у провайдера — по его прайсу
+    openweights_price_out_per_1k: float = 0.0  # выход, если дороже входа (Qwen3.6 в AI Studio: 0,20 / 0,30 ₽); 0 — как вход
     openweights_no_think: bool = False        # Qwen3 с режимом рассуждения: /no_think — быстрее и без «мыслей» в ответе
 
     # --- Кабинет менеджера ---

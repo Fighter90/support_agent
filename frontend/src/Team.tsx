@@ -84,13 +84,21 @@ export function Profile() {
 }
 
 const ACT: Record<string, string> = { assign: 'назначено', release: 'вернулось в очередь', timeout: 'не взято вовремя', take: 'взял(а) диалог', return: 'вернул(а) агенту',
-  transfer: 'передал(а) диалог', invite: 'позвал(а) коллегу', leave: 'вышел(ла) из диалога', answer: 'ответил(а) на обращение', close: 'закрыл(а) без ответа', user_update: 'изменил(а) учётку' }
+  transfer: 'передал(а) диалог', invite: 'позвал(а) коллегу', leave: 'вышел(ла) из диалога', answer: 'ответил(а) на обращение', close: 'закрыл(а) без ответа', user_update: 'изменил(а) учётку', user_create: 'создал(а) учётку', password_reset: 'выдал(а) новый пароль' }
+
+function CopyRow({ label, value }: { label: string; value: string }) {
+  const [done, setDone] = useState(false)
+  const copy = () => { navigator.clipboard?.writeText(value).then(() => { setDone(true); window.setTimeout(() => setDone(false), 1500) }).catch(() => {}) }
+  return <div className="cred-row"><span className="muted small">{label}</span><code>{value}</code>
+    <button type="button" className="btn sm ghost" onClick={copy}><Copy size={13} /> {done ? 'Скопировано' : 'Копировать'}</button></div>
+}
+
 
 export function TeamAdmin() {
   const [d, setD] = useState<any>(null)
   const [log, setLog] = useState<any[]>([])
   const [f, setF] = useState({ login: '', name: '', role: 'manager', max_load: 5, routing: true })
-  const [inv, setInv] = useState<{ who: string; url: string } | null>(null)
+  const [inv, setInv] = useState<{ who: string; login: string; password?: string; url?: string } | null>(null)
   const [msg, setMsg] = useState('')
   const [stale, setStale] = useState(24)
   const closeStale = async () => { const r = await api<any>('/api/admin/escalations/close-stale', { auth: true, body: { older_than_hours: stale } }); setMsg(`Закрыто устаревших обращений: ${r.closed}`); load() }
@@ -99,11 +107,12 @@ export function TeamAdmin() {
   const link = (code: string) => `${location.origin}/manager?invite=${code}`
   const create = async (e: FormEvent) => {
     e.preventDefault(); setMsg('')
-    try { const r = await api<any>('/api/admin/users', { auth: true, body: f }); setInv({ who: r.name, url: link(r.invite_code) }); setF({ login: '', name: '', role: 'manager', max_load: 5, routing: true }); load() }
+    try { const r = await api<any>('/api/admin/users', { auth: true, body: f }); setInv({ who: r.name, login: r.login, password: r.password, url: link(r.invite_code) }); setF({ login: '', name: '', role: 'manager', max_load: 5, routing: true }); load() }
     catch (x) { setMsg((x as Error).message) }
   }
   const patch = async (login: string, body: any) => { try { await api(`/api/admin/users/${login}`, { auth: true, method: 'PATCH', body }); load() } catch (x) { setMsg((x as Error).message) } }
-  const reinvite = async (u: any) => { const r = await api<any>(`/api/admin/users/${u.login}/invite`, { auth: true, method: 'POST' }); setInv({ who: u.name, url: link(r.invite_code) }) }
+  const reinvite = async (u: any) => { try { const r = await api<any>(`/api/admin/users/${u.login}/invite`, { auth: true, method: 'POST' }); setInv({ who: u.name, login: u.login, url: link(r.invite_code) }) } catch (x) { setMsg((x as Error).message) } }
+  const newPassword = async (u: any) => { try { const r = await api<any>(`/api/admin/users/${u.login}/password`, { auth: true, method: 'POST' }); setInv({ who: u.name, login: r.login, password: r.password }); load(); window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (x) { setMsg((x as Error).message) } }
   const routing = async (body: any) => { await api('/api/admin/routing', { auth: true, body }); load() }
   if (!d) return <div className="muted pad">{msg || 'Загрузка…'}</div>
   return (
@@ -117,29 +126,45 @@ export function TeamAdmin() {
       <div className="cols">
         <form className="panel row-form" onSubmit={create}>
           <b><UserPlus size={15} /> Новый сотрудник</b>
-          <input placeholder="Логин (латиница), например anna.smirnova" value={f.login} onChange={e => setF({ ...f, login: e.target.value })} />
+          <input placeholder="Логин, например anna.smirnova (можно не заполнять — соберём из имени)" value={f.login} onChange={e => setF({ ...f, login: e.target.value })} />
           <input placeholder="Имя — его увидит клиент, например Анна Смирнова" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} />
           <label className="small">Роль <select value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="manager">Менеджер</option><option value="admin">Администратор</option></select></label>
-          <label className="small">Одновременно диалогов, не больше <input type="number" min={1} max={30} value={f.max_load} onChange={e => setF({ ...f, max_load: Number(e.target.value) })} style={{ width: 70 }} /></label>
+          <label className="small">Одновременно диалогов, не больше <input type="number" min={1} max={30} value={f.max_load} onChange={e => setF({ ...f, max_load: e.target.value === '' ? ('' as any) : Number(e.target.value) })} style={{ width: 70 }} /></label>
           <label className="check small"><input type="checkbox" checked={f.routing} onChange={e => setF({ ...f, routing: e.target.checked })} /> Получает обращения автоматически</label>
-          <button className="btn" disabled={f.login.length < 3 || f.name.length < 2}>Создать и получить ссылку-приглашение</button>
+          <button className="btn" disabled={f.name.trim().length < 2}>Создать: логин, пароль и ссылка-приглашение</button>
           {msg && <div className={`${/Закрыто/.test(msg) ? 'ok' : 'err'} small`}>{msg}</div>}
-          {inv && <div className="ok small invite">Ссылка для «{inv.who}» (одноразовая, 72 ч) — отправьте сотруднику; пароль он задаст сам в «Профиле»:
-            <code>{inv.url}</code><button type="button" className="btn sm ghost" onClick={() => navigator.clipboard?.writeText(inv.url)}><Copy size={13} /> Копировать</button></div>}
+          {inv && <div className="ok small invite creds">
+            <b>Доступ для «{inv.who}» — передайте сотруднику</b>
+            <CopyRow label="Адрес" value={`${location.origin}/manager`} />
+            <CopyRow label="Логин" value={inv.login} />
+            {inv.password && <CopyRow label="Пароль" value={inv.password} />}
+            {inv.url && <CopyRow label="Ссылка-приглашение (вход без пароля, одноразовая, 72 ч)" value={inv.url} />}
+            <button type="button" className="btn sm" onClick={() => navigator.clipboard?.writeText(
+              [`Кабинет: ${location.origin}/manager`, `Логин: ${inv.login}`, inv.password ? `Пароль: ${inv.password}` : '', inv.url ? `Ссылка для входа: ${inv.url}` : ''].filter(Boolean).join('\n'))}>
+              <Copy size={13} /> Скопировать всё одним сообщением</button>
+            <div className="muted small">Пароль показывается один раз и хранится только в виде хеша. Забыли — нажмите «Новый пароль» в таблице; сотрудник может сменить его в «Профиле».</div>
+          </div>}
         </form>
-        <div className="panel">
+        <div className="panel routing">
           <b>Распределение обращений</b>
           <label className="check"><input type="checkbox" checked={d.auto_assign} onChange={e => routing({ auto_assign: e.target.checked })} /> Автоназначение по очереди</label>
           <label className="small">Не взял за <select value={d.reassign_seconds} onChange={e => routing({ reassign_seconds: Number(e.target.value) })}>
             {[60, 120, 180, 300, 600].map(s => <option key={s} value={s}>{s / 60} мин</option>)}</select> — передать следующему</label>
-          <div className="row" style={{ gap: 8, alignItems: 'center', margin: '6px 0' }}>
+          <div className="row stale">
             <span className="small">Разобрать очередь: закрыть обращения старше</span>
             <select value={stale} onChange={e => setStale(Number(e.target.value))}>{[0.5, 1, 6, 24, 72].map(h => <option key={h} value={h}>{h < 1 ? '30 мин' : h + ' ч'}</option>)}</select>
             <button type="button" className="btn sm ghost" onClick={closeStale}>Закрыть</button>
           </div>
-          <p className="muted small">Очередь — по времени обращения. Исполнитель — менеджер «в сети» с автоназначением и с наименьшей нагрузкой ниже лимита;
-            при равенстве — кто дольше без нового обращения. Свободных нет — обращение ждёт в очереди и видно всем, уведомление в Telegram получают все.
-            Перерыв или выход — невзятые обращения возвращаются в очередь. Взять обращение вручную может любой менеджер.</p>
+          <div className="muted small rules">
+            <p><b>Как распределяются обращения</b></p>
+            <ul>
+              <li>Очередь — по времени обращения.</li>
+              <li>Исполнитель — менеджер «в сети» с автоназначением и с наименьшей нагрузкой ниже лимита; при равенстве — кто дольше без нового обращения.</li>
+              <li>Свободных нет — обращение ждёт в очереди и видно всем; уведомление в Telegram получают все.</li>
+              <li>Перерыв или выход — невзятые обращения возвращаются в очередь.</li>
+              <li>Взять обращение вручную может любой менеджер.</li>
+            </ul>
+          </div>
         </div>
       </div>
       <table className="tbl">
@@ -156,7 +181,9 @@ export function TeamAdmin() {
             <td>{u.telegram ? '✓' : '—'}</td>
             <td><input type="checkbox" aria-label="Автоназначение" checked={!!u.routing} onChange={e => patch(u.login, { routing: e.target.checked })} /></td>
             <td><button className="btn sm ghost" onClick={() => patch(u.login, { active: !u.active })}>{u.active ? 'Отключить' : 'Включить'}</button></td>
-            <td>{u.created_by !== 'env' && <button className="btn sm ghost" onClick={() => reinvite(u)}>Новая ссылка</button>}</td>
+            <td className="nowrap">{u.created_by !== 'env'
+              ? <><button className="btn sm ghost" onClick={() => newPassword(u)}>Новый пароль</button> <button className="btn sm ghost" onClick={() => reinvite(u)}>Новая ссылка</button></>
+              : <span className="muted small">пароль — в .env на сервере</span>}</td>
           </tr>))}
         </tbody>
       </table>

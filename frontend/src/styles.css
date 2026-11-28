@@ -202,3 +202,33 @@ input.full { width: 100%; box-sizing: border-box; margin: 8px 0; }
 
 /* плашка демо-прототипа (условие организаторов): видна на всех страницах */
 .demo-banner { background: #1f1f22; color: #fff; text-align: center; font: 600 13px/1.35 Arial, sans-serif; padding: 7px 12px; position: relative; z-index: 60; }
+
+/* «Команда»: блок доступа с копированием и отступы в «Распределении обращений» */
+.creds{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px}
+.cred-row{display:grid;grid-template-columns:150px 1fr auto;gap:10px;align-items:center}
+.cred-row code{margin:0}
+.team .panel.routing{display:flex;flex-direction:column;gap:14px;padding:16px 18px}
+.team .panel.routing label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.team .panel.routing .stale{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #eee;border-bottom:1px solid #eee}
+.team .panel.routing .rules p{margin:0 0 6px}
+.team .panel.routing .rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;line-height:1.45}
+.team .cols{gap:18px}
+.team form.row-form{gap:12px;padding:16px 18px}
+.team .nowrap{white-space:nowrap}
+@media (max-width:700px){.cred-row{grid-template-columns:1fr}}
+/* «Команда»: две равные колонки на всю ширину, поля не вылезают, логин и ссылки читаются целиком */
+.team .cols{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+@media (max-width:1000px){.team .cols{grid-template-columns:minmax(0,1fr)}}
+.team form.row-form>*{min-width:0}
+.team form.row-form input:not([type=checkbox]),.team form.row-form select{width:100%;box-sizing:border-box}
+.team form.row-form label{flex-direction:row;justify-content:space-between;align-items:center;min-width:0;color:var(--ink);gap:12px}
+.team form.row-form label select{width:auto;min-width:180px}
+.team form.row-form label input[type=number]{width:90px!important;flex:none}
+.team form.row-form label.check{justify-content:flex-start}
+.team form.row-form>.btn{align-self:flex-start;padding:10px 18px}
+.cred-row{grid-template-columns:110px minmax(0,1fr) auto}
+.cred-row code{display:block;white-space:normal;word-break:break-all;overflow-wrap:anywhere;padding:6px 8px}
+.creds>b{font-size:14px}
+.creds{text-align:left}
+.cred-row>span{text-align:left}
+.team .tbl td:nth-child(4){min-width:170px}

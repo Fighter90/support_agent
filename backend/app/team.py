@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 import threading
 import time
@@ -118,13 +119,44 @@ def authenticate(login: str, pw: str) -> dict[str, Any] | None:
     return u
 
 
+_TR = dict(zip('абвгдеёзийклмнопрстуфхцы', ['a', 'b', 'v', 'g', 'd', 'e', 'e', 'z', 'i', 'y', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'f', 'h', 'ts', 'y']))
+_TR.update({'ж': 'zh', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ю': 'yu', 'я': 'ya', 'ь': '', 'ъ': '', 'э': 'e'})
+
+
+def make_login(login: str, name: str) -> str:
+    """Логин из того, что ввёл администратор; кириллица и пробелы переводятся в латиницу, пусто — из имени."""
+    raw = (login or '').strip().lower() or (name or '').strip().lower()
+    out = ''.join(_TR.get(ch, ch) for ch in raw)
+    out = re.sub(r'[^a-z0-9._-]+', '.', out).strip('.-_')
+    out = re.sub(r'\.{2,}', '.', out)[:40]
+    if len(out) < 3:
+        out = (out + '.manager')[:40] if out else 'manager' + secrets.token_hex(2)
+    base, n = out, 2
+    while get(out):
+        out = f'{base[:36]}{n}'
+        n += 1
+    return out
+
+
+def gen_password() -> str:
+    """Пароль для передачи сотруднику: 12 символов без похожих букв (0/O, 1/l), три группы через дефис."""
+    abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    return '-'.join(''.join(secrets.choice(abc) for _ in range(4)) for _ in range(3))
+
+
 def create(login: str, name: str, role: str, max_load: int, routing: bool, by: str) -> dict[str, Any]:
-    login = login.strip().lower()
-    if get(login):
-        raise ValueError('Логин уже занят')
+    login = make_login(login, name)
     db.execute('INSERT INTO users (login, name, role, max_load, routing, created_by, created_at) VALUES (?,?,?,?,?,?,?)',
                (login, name.strip(), role, max_load, int(routing), by, db.now()))
-    return {**public(get(login)), **new_invite(login)}
+    pw = gen_password()
+    set_password(login, pw)
+    return {**public(get(login)), **new_invite(login), 'password': pw}
+
+
+def reset_password(login: str) -> str:
+    pw = gen_password()
+    set_password(login, pw)
+    return pw
 
 
 def new_invite(login: str) -> dict[str, Any]:

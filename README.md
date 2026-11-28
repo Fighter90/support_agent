@@ -59,7 +59,7 @@
                                                         ▼
                           GigaChat 2 Max ──(ошибка)──► YandexGPT Pro 5.1 ──(ошибка)──► режим без модели
 SQLite: catalog.db (фид Mindbox, FTS5) · app.db (диалоги, эскалации, КП, база знаний, журнал)
-Фид store.softline.ru/feeds/Mindbox.yml.gz — загрузка раз в сутки (13 с на 136 040 позиций)
+Фид store.softline.ru/feeds/Mindbox.yml.gz — загрузка раз в сутки (13 с на ~136 тыс. позиций)
 Docker Compose: app (FastAPI + React) + Caddy (HTTPS) на одной ВМ Timeweb Cloud в РФ
 ```
 

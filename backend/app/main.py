@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
+from fastapi.exceptions import RequestValidationError
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -596,10 +597,10 @@ def close_stale(body: StaleIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
     return {'closed': len(rs)}
 
 class UserIn(BaseModel):
-    login: str = Field(min_length=3, max_length=40, pattern='^[a-zA-Z0-9._-]+$')
-    name: str = Field(min_length=2, max_length=80)
-    role: str = Field('manager', pattern='^(admin|manager)$')
-    max_load: int = Field(5, ge=1, le=30)
+    login: str = Field('', max_length=60)          # пусто или кириллица — логин соберётся из имени латиницей
+    name: str = Field(max_length=80)
+    role: str = 'manager'
+    max_load: int | str | None = 5                 # пустое поле формы — 5; вне 1–30 — к ближайшей границе
     routing: bool = True
 
 
@@ -617,6 +618,20 @@ class RoutingIn(BaseModel):
     reassign_seconds: int | None = Field(None, ge=60, le=3600)
 
 
+FIELD_RU = {'login': 'логин', 'name': 'имя', 'role': 'роль', 'max_load': 'лимит диалогов', 'password': 'пароль', 'text': 'текст'}
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Ошибка проверки полей — понятным текстом, а не «Ошибка 422»."""
+    fields = sorted({FIELD_RU.get(str(e.get('loc', ['', ''])[-1]), str(e.get('loc', ['', ''])[-1])) for e in exc.errors()})
+    return JSONResponse({'detail': 'Проверьте поля: ' + ', '.join(fields), 'errors': jsonable_errors(exc)}, status_code=422)
+
+
+def jsonable_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
+    return [{'loc': [str(x) for x in e.get('loc', [])], 'msg': str(e.get('msg', ''))} for e in exc.errors()]
+
+
 @app.get('/api/admin/users')
 def admin_users(m: dict = Depends(auth.admin)) -> dict[str, Any]:
     return {'users': team.roster(), 'auto_assign': team.auto_assign(), 'reassign_seconds': team.reassign_seconds(),
@@ -626,10 +641,30 @@ def admin_users(m: dict = Depends(auth.admin)) -> dict[str, Any]:
 
 @app.post('/api/admin/users')
 def admin_create(body: UserIn, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    name = body.name.strip()
+    if len(name) < 2:
+        raise HTTPException(400, 'Укажите имя сотрудника — его увидит клиент')
     try:
-        return team.create(body.login, body.name, body.role, body.max_load, body.routing, m['login'])
-    except ValueError as e:
-        raise HTTPException(400, str(e)) from e
+        load = min(30, max(1, int(body.max_load or 5)))
+    except (TypeError, ValueError):
+        load = 5
+    role = body.role if body.role in ('admin', 'manager') else 'manager'
+    u = team.create(body.login, name, role, load, body.routing, m['login'])
+    team._log('', None, 'user_create', m['login'], u['login'])
+    return u
+
+
+@app.post('/api/admin/users/{login}/password')
+def admin_reset_password(login: str, m: dict = Depends(auth.admin)) -> dict[str, Any]:
+    """Новый пароль сотрудника: показывается администратору один раз, чтобы скопировать и передать."""
+    from app.config import get_settings
+
+    if not team.get(login):
+        raise HTTPException(404, 'Нет такого пользователя')
+    if login in (get_settings().manager_login, get_settings().jury_login):
+        raise HTTPException(400, 'Пароль этой учётки задан в .env на сервере (MANAGER_PASSWORD / JURY_PASSWORD) — меняется там')
+    team._log('', None, 'password_reset', m['login'], login)
+    return {'login': login, 'password': team.reset_password(login)}
 
 
 @app.patch('/api/admin/users/{login}')
